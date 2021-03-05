@@ -7,10 +7,10 @@ public class CelestialObject : MonoBehaviour
 {
     const float GRAV_CONST = 0.0001f;
     bool isFixed;
+
+    [HideInInspector]
     public Rigidbody rb;
-    float radius;
-    float mass;
-    Vector3 initialVelocity;
+    public Vector3 initialVelocity;
     public static List<CelestialObject> allCelestialObjects = new List<CelestialObject>();
 
     // On Awake, before any Start is executed, add this object to the list of all celestial objects.
@@ -41,7 +41,7 @@ public class CelestialObject : MonoBehaviour
 
         // Calculate the acceleration using the other's difference as a force direction and square distance.
         Vector3 difference = other.rb.position - rb.position;
-        Vector3 acceleration = difference.normalized * GRAV_CONST * other.mass / difference.sqrMagnitude;
+        Vector3 acceleration = difference.normalized * GRAV_CONST * other.rb.mass / difference.sqrMagnitude;
 
         return acceleration;
     }

@@ -12,6 +12,7 @@ public class CelestialObject : MonoBehaviour
     public Rigidbody rb;
     public Vector3 initialVelocity;
     public static List<CelestialObject> allCelestialObjects = new List<CelestialObject>();
+    public CelestialObject centralPlanet;   // Set this if you want object to orbit around this other object
 
     // On Awake, before any Start is executed, add this object to the list of all celestial objects.
     void Awake() {
@@ -22,7 +23,16 @@ public class CelestialObject : MonoBehaviour
     void Start()
     {
         rb = GetComponent<Rigidbody>();
-        rb.velocity = initialVelocity;
+
+        // If object chosen as center of orbit find required initial velocity, otherwise take specified velocity
+        if (centralPlanet)  
+        {
+            rb.velocity = CalculateInitialVelocityCircular();
+        }
+        else
+        {
+            rb.velocity = initialVelocity;
+        }
     }
 
     void OnDestroy() {
@@ -62,5 +72,14 @@ public class CelestialObject : MonoBehaviour
         }
         
         return acceleration;
+    }
+
+    // If called, required initial velocity for circular orbit is calculated. NOTE: only call function if centralPlanet is set.
+    private Vector3 CalculateInitialVelocityCircular()
+    {
+        Vector3 difference = rb.position - centralPlanet.rb.position;               // Orbit radius
+        Quaternion rotationQuaternion = Quaternion.AngleAxis(90, Vector3.up);       // For finding tangent vector
+        Vector3 tangentVector = rotationQuaternion * difference.normalized;         // Vector tangent to orbit
+        return Mathf.Sqrt(GRAV_CONST * centralPlanet.rb.mass / difference.magnitude) * tangentVector;   // Required initial velocity
     }
 }

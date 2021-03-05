@@ -17,21 +17,18 @@ public class CelestialObject : MonoBehaviour
     // On Awake, before any Start is executed, add this object to the list of all celestial objects.
     void Awake() {
         allCelestialObjects.Add(this);
+        rb = GetComponent<Rigidbody>();
+        rb.velocity = initialVelocity;
     }
 
     // Start is called before the first frame update
     void Start()
     {
-        rb = GetComponent<Rigidbody>();
 
         // If object chosen as center of orbit find required initial velocity, otherwise take specified velocity
         if (centralPlanet)  
         {
             rb.velocity = CalculateInitialVelocityCircular();
-        }
-        else
-        {
-            rb.velocity = initialVelocity;
         }
     }
 
@@ -80,6 +77,6 @@ public class CelestialObject : MonoBehaviour
         Vector3 difference = rb.position - centralPlanet.rb.position;               // Orbit radius
         Quaternion rotationQuaternion = Quaternion.AngleAxis(90, Vector3.up);       // For finding tangent vector
         Vector3 tangentVector = rotationQuaternion * difference.normalized;         // Vector tangent to orbit
-        return Mathf.Sqrt(GRAV_CONST * centralPlanet.rb.mass / difference.magnitude) * tangentVector;   // Required initial velocity
+        return Mathf.Sqrt(GRAV_CONST * centralPlanet.rb.mass / difference.magnitude) * tangentVector + centralPlanet.rb.velocity;   // Required initial velocity
     }
 }

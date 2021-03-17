@@ -339,6 +339,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   rb: {fileID: 0}
   initialVelocity: {x: 10, y: 0, z: 10}
+  centralPlanet: {fileID: 0}
 --- !u!96 &852283974
 TrailRenderer:
   serializedVersion: 2
@@ -689,6 +690,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   rb: {fileID: 2114346944}
   initialVelocity: {x: 0, y: 0, z: 10}
+  centralPlanet: {fileID: 0}
 --- !u!96 &2114346946
 TrailRenderer:
   serializedVersion: 2

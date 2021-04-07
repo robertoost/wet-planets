@@ -14,6 +14,8 @@ public class CellMaster : MonoBehaviour
     CellGrid cells;
 
     private const float GRAV = -9.81f;
+    
+    public const float VISCOSITY = 0.89f;
 
     // Start is called before the first frame update
     void Start()
@@ -68,6 +70,15 @@ public class CellMaster : MonoBehaviour
         //3g. Set solid cell velocities.
     }
 
+    // Replace all cells' tempvelocities with their current velocities.
+    void commitVelocities() {
+        foreach ((int, int, int) key in cells.getKeys())
+        {
+            (int i, int j, int k) = key;
+            Cell currentCell = cells[i, j, k];
+            currentCell.velocity = currentCell.tempVelocity;
+        }
+    }
     void convection(float timeStep)
     {
         foreach ((int,int,int) key in cells.getKeys())
@@ -86,14 +97,10 @@ public class CellMaster : MonoBehaviour
             currentCell.tempVelocity = V;
         }
 
-        // Commit velocities
-        foreach ((int, int, int) key in cells.getKeys())
-        {
-            (int i, int j, int k) = key;
-            Cell currentCell = cells[i, j, k];
-            currentCell.velocity = currentCell.tempVelocity;
-        }
+        commitVelocities();
     }
+
+
 
     // Get the interpolated velocity at a point in space.
     Vector3 getVelocity(float x, float y, float z)
@@ -154,7 +161,38 @@ public class CellMaster : MonoBehaviour
 
     void viscosity(float timeStep)
     {
-        
+        foreach ((int,int,int) key in cells.getKeys())
+        {
+            (int i, int j, int k) = key;
+
+            Cell currentCell = cells[i, j, k];
+
+            Cell[] cellArray = {cells[i + 1, j, k], cells[i - 1, j, k], 
+                                cells[i, j + 1, k], cells[i, j - 1, k], 
+                                cells[i, j, k + 1], cells[i, j, k - 1] };
+
+
+            // TODO: Do we actually need to decrease the laplacian counter if a value is omitted?
+            // calculate the laplacian by adding neighbouring velocities together.
+            int laplacianCounter = 0;
+            Vector3 laplacian = Vector3.zero;
+            foreach (Cell cell in cellArray) {
+
+                // If a cell exists, include it in the laplacian.
+                if ( cell ) {
+                    laplacian += cell.velocity;
+                    laplacianCounter++;
+                }
+            }
+
+            // Subtract current cell velocity multiplied by the amount of included neighbours.
+            laplacian -= laplacianCounter * currentCell.velocity;
+            
+            // Set the viscous velicity as the temp velocity.
+            currentCell.tempVelocity = currentCell.velocity + timeStep * VISCOSITY * laplacian;
+        }
+
+        commitVelocities();
     }
 
     void findPressure(float timeStep)

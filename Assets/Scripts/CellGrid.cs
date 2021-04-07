@@ -1,14 +1,55 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class  CellGrid
+public class CellGrid : IEnumerable
 {
     Dictionary<(int, int,int), Cell> cells = new Dictionary<(int, int,int), Cell>();
     public Cell this[int x, int y, int z]
     {
         get { return (Cell) cells[(x, y, z)]; }
         set { cells[(x, y, z)] = value; }
+    }
+
+    public Cell this[(int, int, int) key]
+    {
+        get {
+            return cells[key]; 
+        }
+        set {
+            cells[(key)] = value; 
+        }
+    }
+
+    public int Count {
+        get { return cells.Count; }
+    }
+    public ICollection Keys
+    {
+        get { return cells.Keys; }
+    }
+
+    //Loop over each cell.
+    public IEnumerator<Cell> GetEnumerator()
+    {
+        foreach((int,int,int) key in cells.Keys)
+        {
+            yield return cells[key];
+        }
+    }
+
+    // // Iterate over all cells by their indices.
+    // public IEnumerator<(int,int,int)> GetEnumerator()
+    // {
+    //     foreach ((int,int,int) key in cells.Keys) {
+    //         yield return key;
+    //     }
+    // }
+
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        throw new NotImplementedException();
     }
 
     //public Cell this[int i]
@@ -46,8 +87,5 @@ public class  CellGrid
         cells.Remove((x, y, z));
     }
 
-    public ICollection getKeys()
-    {
-        return cells.Keys;
-    }
+
 }

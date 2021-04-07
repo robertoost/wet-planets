@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using MathNet.Numerics.LinearAlgebra;
 
 public class CellMaster : MonoBehaviour
 {
@@ -72,19 +73,17 @@ public class CellMaster : MonoBehaviour
 
     // Replace all cells' tempvelocities with their current velocities.
     void commitVelocities() {
-        foreach ((int, int, int) key in cells.getKeys())
+        foreach ((int, int, int) key in cells.Keys)
         {
             (int i, int j, int k) = key;
-            Cell currentCell = cells[i, j, k];
+            Cell currentCell = cells[key];
             currentCell.velocity = currentCell.tempVelocity;
         }
     }
     void convection(float timeStep)
     {
-        foreach ((int,int,int) key in cells.getKeys())
+        foreach (Cell currentCell in cells)
         {
-            (int i, int j, int k) = key;
-            Cell currentCell = cells[i, j, k];
             // Extraction location of cell
             Vector3 locationCell = currentCell.location;
             float x = locationCell.x; float y = locationCell.y; float z = locationCell.z;
@@ -119,7 +118,7 @@ public class CellMaster : MonoBehaviour
         // Convert to integer to get the rounded down indices of the cell.
         (int i, int j, int k) = ((int)x, (int)y, (int)z);
 
-        // Get the current cell and neigbouring cells.
+        // Get the cells to interpolate between.
         Cell[] cellArray = {cells[i, j, k], cells[i + 1, j, k], cells[i, j + 1, k], cells[i + 1, j + 1, k],
                                   cells[i, j, k + 1], cells[i + 1, j, k + 1], cells[i, j + 1, k + 1], cells[i + 1, j + 1, k + 1] };
         
@@ -151,22 +150,22 @@ public class CellMaster : MonoBehaviour
     // TODO: Change to incorporate our planetary gravity.
     void externalForces(float timeStep)
     {
-        foreach ((int, int, int) key in cells.getKeys())
+        foreach (Cell cell in cells)
         {
-            (int i, int j, int k) = key;
-            cells[i,j,k].velocity += new Vector3(0, GRAV * timeStep, 0);
+            cell.velocity += new Vector3(0, GRAV * timeStep, 0);
         }
     }
 
-
+    // Calculates the viscosity of every liquid cell's fluid.
     void viscosity(float timeStep)
     {
-        foreach ((int,int,int) key in cells.getKeys())
+        foreach ((int,int,int) key in cells.Keys)
         {
             (int i, int j, int k) = key;
 
-            Cell currentCell = cells[i, j, k];
+            Cell currentCell = cells[key];
 
+            // Create list of neighbouring cells.
             Cell[] cellArray = {cells[i + 1, j, k], cells[i - 1, j, k], 
                                 cells[i, j + 1, k], cells[i, j - 1, k], 
                                 cells[i, j, k + 1], cells[i, j, k - 1] };
@@ -197,5 +196,64 @@ public class CellMaster : MonoBehaviour
 
     void findPressure(float timeStep)
     {
+        int cellCount = cells.Count;
+
+        // Create a matrix A to store coefficients for every cell and their neighbours
+        Matrix<int> A = SparseMatrixModule.zero<int>(cellCount, cellCount);
+
+
+        // Copy the list of cell keys 
+        (int,int,int)[] cellKeyList = {};
+        for( int i = 0; i < 0; i++) {
+            cells.Keys.CopyTo(cellKeyList, i);
+        }
+
+        // Create a dictionary of every cell with an associated index for their values in the A matrix.
+        Dictionary<(int,int,int), int> cellIndices = new Dictionary<(int,int,int), int>();
+
+        for ( int i = 0; i < cellKeyList.Length; i++ ) {
+            (int,int,int) cellKey = cellKeyList[i];
+
+            cellIndices[cellKey] = i;
+        }
+        
+        // 
+        foreach ((int,int,int) key in cellKeyList) {
+            (int i, int j, int k) = key;
+            Cell currentCell = cells[key];
+            int currentCellIndex = cellIndices[key];
+            
+            
+
+            // Create list of neighbouring cells.
+            (int,int,int)[] neighbourKeys = {(i + 1, j, k), (i - 1, j, k), 
+                                (i, j + 1, k), (i, j - 1, k), 
+                                (i, j, k + 1), (i, j, k - 1) };
+
+            // Cell[] neighbours = {cells[i + 1, j, k], cells[i - 1, j, k], 
+            //                     cells[i, j + 1, k], cells[i, j - 1, k], 
+            //                     cells[i, j, k + 1], cells[i, j, k - 1] };
+
+            Cell[] nonSolidNeighbours = {};
+            Cell[] fluidNeighbours = {};
+
+            int nonSolidCount = 0;
+
+            foreach ( (int,int,int) neighbourKey in neighbourKeys ) {
+                Cell neighbour = cells[neighbourKey];
+                if ( neighbour.cellType != Cell.CellType.SOLID ) {
+                    nonSolidNeighbours[nonSolidCount++] = neighbour;
+
+                    if ( neighbour.cellType == Cell.CellType.FLUID ) {
+                        int fluidCellIndex = cellIndices[neighbourKey];
+                        A[currentCellIndex, fluidCellIndex] = 1;
+                    }
+
+                }
+
+            }
+
+            A[currentCellIndex, currentCellIndex] = -nonSolidCount;
+        }
     }
 }

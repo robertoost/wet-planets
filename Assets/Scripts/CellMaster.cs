@@ -15,8 +15,9 @@ public class CellMaster : MonoBehaviour
     CellGrid cells;
 
     private const float GRAV = -9.81f;
-    
     public const float VISCOSITY = 0.89f;
+    public const float FLUID_DENSITY = 1.00f;
+    public const float ATMOSPHERIC_PRESSURE = 101325f;
 
     // Start is called before the first frame update
     void Start()
@@ -39,7 +40,7 @@ public class CellMaster : MonoBehaviour
                     Vector3 location = new Vector3(x_loc, y_loc, z_loc);
 
                     // Create new cell
-                    Cell newCell = new Cell(cellType, location, velocity, pressure);
+                    Cell newCell = new Cell(cellType, location, velocity, pressure, FLUID_DENSITY);
                     //cells.Add(newCell);
                     cells.addCell(newCell, x, y, z);
                 }
@@ -198,62 +199,75 @@ public class CellMaster : MonoBehaviour
     {
         int cellCount = cells.Count;
 
-        // Create a matrix A to store coefficients for every cell and their neighbours
-        Matrix<int> A = SparseMatrixModule.zero<int>(cellCount, cellCount);
-
-
         // Copy the list of cell keys 
-        (int,int,int)[] cellKeyList = {};
-        for( int i = 0; i < 0; i++) {
+        (int, int, int)[] cellKeyList = { };
+        for (int i = 0; i < 0; i++)
+        {
             cells.Keys.CopyTo(cellKeyList, i);
         }
 
         // Create a dictionary of every cell with an associated index for their values in the A matrix.
-        Dictionary<(int,int,int), int> cellIndices = new Dictionary<(int,int,int), int>();
+        Dictionary<(int, int, int), int> cellIndices = new Dictionary<(int, int, int), int>();
 
-        for ( int i = 0; i < cellKeyList.Length; i++ ) {
-            (int,int,int) cellKey = cellKeyList[i];
-
+        for (int i = 0; i < cellKeyList.Length; i++)
+        {
+            (int, int, int) cellKey = cellKeyList[i];
             cellIndices[cellKey] = i;
         }
-        
-        // 
-        foreach ((int,int,int) key in cellKeyList) {
+
+        // Create a matrix A to store coefficients for every cell and their neighbours
+        Matrix<int> A = SparseMatrixModule.zero<int>(cellCount, cellCount);
+        Vector<float> B = CreateVector.Dense<float>(cellCount);
+
+        foreach ((int, int, int) key in cellKeyList)
+        {
             (int i, int j, int k) = key;
             Cell currentCell = cells[key];
             int currentCellIndex = cellIndices[key];
-            
-            
 
             // Create list of neighbouring cells.
-            (int,int,int)[] neighbourKeys = {(i + 1, j, k), (i - 1, j, k), 
-                                (i, j + 1, k), (i, j - 1, k), 
+            (int, int, int)[] neighbourKeys = {(i + 1, j, k), (i - 1, j, k),
+                                (i, j + 1, k), (i, j - 1, k),
                                 (i, j, k + 1), (i, j, k - 1) };
 
-            // Cell[] neighbours = {cells[i + 1, j, k], cells[i - 1, j, k], 
-            //                     cells[i, j + 1, k], cells[i, j - 1, k], 
-            //                     cells[i, j, k + 1], cells[i, j, k - 1] };
+            Cell[] fluidNeighbours = { };    // Neighbours that are fluid cells
+            int nonSolidCount = 0;          // Number of non-solid neighbours
+            int airCount = 0;          // Number of non-solid neighbours
 
-            Cell[] nonSolidNeighbours = {};
-            Cell[] fluidNeighbours = {};
+            // TODO: WHICH TERMS NEED TO BE ZERO?
+            float divergence = (cells[i + 1, j, k].velocity[0] - cells[i, j, k].velocity[0]) 
+                                + (cells[i, j + 1, k].velocity[1] - cells[i, j, k].velocity[1])
+                                + (cells[i, j, k + 1].velocity[2] - cells[i, j, k].velocity[2]);
+            
 
-            int nonSolidCount = 0;
-
-            foreach ( (int,int,int) neighbourKey in neighbourKeys ) {
+            // Loop through neighbouring cells
+            foreach ((int, int, int) neighbourKey in neighbourKeys)
+            {
+                // Get neighbour cell
                 Cell neighbour = cells[neighbourKey];
-                if ( neighbour.cellType != Cell.CellType.SOLID ) {
-                    nonSolidNeighbours[nonSolidCount++] = neighbour;
 
-                    if ( neighbour.cellType == Cell.CellType.FLUID ) {
+                // Analyse type of neighbouring
+                if (neighbour.cellType != Cell.CellType.SOLID)
+                {
+                    nonSolidCount++;
+
+                    if (neighbour.cellType == Cell.CellType.FLUID)
+                    {
                         int fluidCellIndex = cellIndices[neighbourKey];
                         A[currentCellIndex, fluidCellIndex] = 1;
                     }
-
+                    else    // So in this case the cell type is AIR
+                    {
+                        airCount++;
+                    }
                 }
-
             }
 
             A[currentCellIndex, currentCellIndex] = -nonSolidCount;
+            B[currentCellIndex] = currentCell.density * cellSize * divergence / timeStep - airCount * ATMOSPHERIC_PRESSURE;
         }
+
+        // Solve for the actual pressure.
+        Vector<float> pressure = (Vector<float>) A.QR().Solve(B);
     }
 }

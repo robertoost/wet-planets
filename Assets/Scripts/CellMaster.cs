@@ -63,7 +63,7 @@ public class CellMaster : MonoBehaviour
         viscosity(timeStep);
 
         //3d. Calculate the pressure to satisfy ∇·u=0.
-        findPressure(timeStep);
+        pressure(timeStep);
 
         //3e. Apply the pressure.
 
@@ -195,7 +195,7 @@ public class CellMaster : MonoBehaviour
         commitVelocities();
     }
 
-    void findPressure(float timeStep)
+    void pressure(float timeStep)
     {
         int cellCount = cells.Count;
 
@@ -207,67 +207,81 @@ public class CellMaster : MonoBehaviour
         }
 
         // Create a dictionary of every cell with an associated index for their values in the A matrix.
-        Dictionary<(int, int, int), int> cellIndices = new Dictionary<(int, int, int), int>();
+        Dictionary<Cell, int> cellIndices = new Dictionary<Cell, int>();
 
         for (int i = 0; i < cellKeyList.Length; i++)
         {
             (int, int, int) cellKey = cellKeyList[i];
-            cellIndices[cellKey] = i;
+            Cell cell = cells[cellKey];
+            cellIndices[cell] = i;
         }
 
         // Create a matrix A to store coefficients for every cell and their neighbours
-        Matrix<int> A = SparseMatrixModule.zero<int>(cellCount, cellCount);
+        Matrix<float> A = SparseMatrixModule.zero<float>(cellCount, cellCount);
+
+        // Create a vector B to solve the A matrix for P later on.
         Vector<float> B = CreateVector.Dense<float>(cellCount);
 
         foreach ((int, int, int) key in cellKeyList)
         {
+            // Get the current key, cell, and cell index.
             (int i, int j, int k) = key;
             Cell currentCell = cells[key];
-            int currentCellIndex = cellIndices[key];
+            int currentCellIndex = cellIndices[currentCell];
 
-            // Create list of neighbouring cells.
-            (int, int, int)[] neighbourKeys = {(i + 1, j, k), (i - 1, j, k),
-                                (i, j + 1, k), (i, j - 1, k),
-                                (i, j, k + 1), (i, j, k - 1) };
-
-            Cell[] fluidNeighbours = { };    // Neighbours that are fluid cells
+            Cell[] fluidNeighbours = {};    // Neighbours that are fluid cells
             int nonSolidCount = 0;          // Number of non-solid neighbours
             int airCount = 0;          // Number of non-solid neighbours
 
-            // TODO: WHICH TERMS NEED TO BE ZERO?
-            float divergence = (cells[i + 1, j, k].velocity[0] - cells[i, j, k].velocity[0]) 
-                                + (cells[i, j + 1, k].velocity[1] - cells[i, j, k].velocity[1])
-                                + (cells[i, j, k + 1].velocity[2] - cells[i, j, k].velocity[2]);
+            // Retrieve all neighbours for the current cell.
+            Cell xMax = cells[i + 1, j, k];
+            Cell yMax = cells[i, j + 1, k];
+            Cell zMax = cells[i, j, k + 1];
+            Cell xMin = cells[i - 1, j, k];
+            Cell yMin = cells[i, j - 1, k];
+            Cell zMin = cells[i, j, k - 1];
             
+            Cell[] neighbours = {xMax, xMin, yMax, yMin, zMax, zMin}; 
 
-            // Loop through neighbouring cells
-            foreach ((int, int, int) neighbourKey in neighbourKeys)
+            // Loop through neighbouring cells to analyze their types.
+            foreach (Cell neighbour in neighbours)
             {
-                // Get neighbour cell
-                Cell neighbour = cells[neighbourKey];
+                if (neighbour.cellType == Cell.CellType.SOLID ) {
+                    continue;
+                }
+                
+                // Count the non solid neighbours for A.
+                nonSolidCount++;
 
-                // Analyse type of neighbouring
-                if (neighbour.cellType != Cell.CellType.SOLID)
+                // If a cell is a fluid cell, add 1 at their respective collumn in the A matrix.
+                if (neighbour.cellType == Cell.CellType.FLUID)
                 {
-                    nonSolidCount++;
-
-                    if (neighbour.cellType == Cell.CellType.FLUID)
-                    {
-                        int fluidCellIndex = cellIndices[neighbourKey];
-                        A[currentCellIndex, fluidCellIndex] = 1;
-                    }
-                    else    // So in this case the cell type is AIR
-                    {
-                        airCount++;
-                    }
+                    int fluidCellIndex = cellIndices[neighbour];
+                    A[currentCellIndex, fluidCellIndex] = 1;
+                }
+                else    // So in this case the cell type is AIR. Count for the B matrix.
+                {
+                    airCount++;
                 }
             }
 
+            // In matrix A, set the current cell to the negative amount of non-solid neighbours.
             A[currentCellIndex, currentCellIndex] = -nonSolidCount;
+
+
+            // Calculate the divergence, setting to 0 for velocity components pointing into solid cells.
+            float divergence = (xMax ? xMax.velocity[0] : 0) - (xMin && xMin.cellType != Cell.CellType.SOLID ? currentCell.velocity[0] : 0)
+                + (yMax ? yMax.velocity[1] : 0) - (yMin && yMin.cellType != Cell.CellType.SOLID ? currentCell.velocity[1] : 0)
+                + (zMax ? zMax.velocity[2] : 0) - (zMin && zMin.cellType != Cell.CellType.SOLID ? currentCell.velocity[2] : 0);
+
+
+            // In matrix B, set a value based off the divergence in the velocity field for the current cell.
             B[currentCellIndex] = currentCell.density * cellSize * divergence / timeStep - airCount * ATMOSPHERIC_PRESSURE;
         }
 
         // Solve for the actual pressure.
         Vector<float> pressure = (Vector<float>) A.QR().Solve(B);
+
+        
     }
 }

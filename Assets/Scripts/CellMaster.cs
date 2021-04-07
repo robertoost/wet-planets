@@ -69,9 +69,9 @@ public class CellMaster : MonoBehaviour
 
     void convection(float timeStep)
     {
-        for (int i = 0; i < cells.Keys.Count; i++)
+        foreach ((int x, int y, int z) in cells.getKeys())
         {
-            Cell currentCell = cells[i];
+            Cell currentCell = cells[x, y, z];
             // Extraction location of cell
             locationCell = currentCell.location;
             x = locationCell.x; y = locationCell.y; z = locationCell.z;
@@ -85,9 +85,9 @@ public class CellMaster : MonoBehaviour
         }
 
         // Commit velocities
-        for (int i = 0; i < cells.Keys.Count; i++)
+        foreach ((int x, int y, int z) in cells.getKeys())
         {
-            Cell currentCell = cells[i];
+            Cell currentCell = cells[x, y, z];
             currentCell.velocity = currentCell.tempVelocity;
         }
     }
@@ -110,23 +110,35 @@ public class CellMaster : MonoBehaviour
         int j = floor(y);
         int k = floor(z);
 
-        float velocitySum = (i + 1 - x) * (j + 1 - y) * (k + 1 - z) * cells.getCellVelocity(i, j, k, index)
-            + (x - i) * (j + 1 - y) * (k + 1 - z) * cells.getCellVelocity(i + 1, j, k, index)
-            + (i + 1 - x) * (y - j) * (k + 1 - z) * cells.getCellVelocity(i, j + 1, k, index)
-            + (x - i) * (y - j) * (k + 1 - z) * cells.getCellVelocity(i + 1, j + 1, k, index)
-            + (i + 1 - x) * (j + 1 - y) * (z - k) * cells.getCellVelocity(i, j, k + 1, index)
-            + (x - i) * (j + 1 - y) * (z - k) * cells.getCellVelocity(i + 1, j, k + 1, index)
-            + (i + 1 - x) * (y - j) * (z - k) * cells.getCellVelocity(i, j + 1, k + 1, index)
-            + (x - i) * (y - j) * (z - k) * cells.getCellVelocity(i + 1, j + 1, k + 1, index);
+        Cell[] cellArray = {cells[i, j, k], cells[i + 1, j, k], cells[i, j + 1, k], cells[i + 1, j + 1, k],
+                                  cells[i, j, k + 1], cells[i + 1, j, k + 1], cells[i, j + 1, k + 1], cells[i + 1, j + 1, k + 1] };
 
-        return 
+        float velocitySum = (i + 1 - x) * (j + 1 - y) * (k + 1 - z) * (cellArray[0]? cellArray[0].velocity[index] : 0)
+            + (x - i) * (j + 1 - y) * (k + 1 - z) * (cellArray[1] ? cellArray[1].velocity[index] : 0)
+            + (i + 1 - x) * (y - j) * (k + 1 - z) * (cellArray[2] ? cellArray[2].velocity[index] : 0)
+            + (x - i) * (y - j) * (k + 1 - z) * (cellArray[3] ? cellArray[3].velocity[index] : 0)
+            + (i + 1 - x) * (j + 1 - y) * (z - k) * (cellArray[4] ? cellArray[4].velocity[index] : 0)
+            + (x - i) * (j + 1 - y) * (z - k) * (cellArray[5] ? cellArray[5].velocity[index] : 0)
+            + (i + 1 - x) * (y - j) * (z - k) * (cellArray[6] ? cellArray[6].velocity[index] : 0)
+            + (x - i) * (y - j) * (z - k) * (cellArray[7] ? cellArray[7].velocity[index] : 0);
+
+        float weightSum = (i + 1 - x) * (j + 1 - y) * (k + 1 - z) * (cellArray[0] ? 1 : 0)
+            + (x - i) * (j + 1 - y) * (k + 1 - z) * (cellArray[1] ? 1 : 0)
+            + (i + 1 - x) * (y - j) * (k + 1 - z) * (cellArray[2] ? 1 : 0)
+            + (x - i) * (y - j) * (k + 1 - z) * (cellArray[3] ? 1 : 0)
+            + (i + 1 - x) * (j + 1 - y) * (z - k) * (cellArray[4] ? 1 : 0)
+            + (x - i) * (j + 1 - y) * (z - k) * (cellArray[5] ? 1 : 0)
+            + (i + 1 - x) * (y - j) * (z - k) * (cellArray[6] ? 1 : 0)
+            + (x - i) * (y - j) * (z - k) * (cellArray[7] ? 1 : 0);
+
+        return velocitySum / weightSum;
     }
 
     void externalForces(float timeStep)
     {
-        for(int i = 0; i < cells.Keys.Count; i++)
+        foreach ((int x, int y, int z) in cells.getKeys())
         {
-            cells[i].velocity += new Vector3(0, GRAV * timeStep, 0);
+            cells[x, y, z].velocity += new Vector3(0, GRAV * timeStep, 0);
         }
     }
 

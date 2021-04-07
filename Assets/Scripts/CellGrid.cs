@@ -7,13 +7,15 @@ public class  CellGrid
     Hashtable cells = new Hashtable();
     public Cell this[int x, int y, int z]
     {
-        return getCell(x, y, z);
+        get { return (Cell) cells[(x, y, z)]; }
+        set { cells[(x, y, z)] = value; }
     }
 
-    public Cell this[int i]
-    {
-            return cells[cells.Keys[i]];
-    }
+    //public Cell this[int i]
+    //{
+    //    get { return (Cell) cells[cells.Keys[i]]; }
+    //    set { cells[cells.Keys[i]] = value; }
+    //}
 
     //private void hashFunction(int x, int y, int z)
     //{
@@ -28,20 +30,24 @@ public class  CellGrid
     //    int y = floor(rest1 / 79);
     //}
 
-    private Cell getCellVelocity(int x, int y, int z, int index)
-    {
-        Cell cell = cells[x, y, z];
-        return (cell ? cell.velocity[index] : 0);
-    }
+    //private Cell getCellVelocity(int x, int y, int z, int index)
+    //{
+    //    Cell cell = (Cell) cells[(x, y, z)];
+    //    return (cell ? cell.velocity[index] : 0);
+    //}
 
     public void addCell(Cell cell, int x, int y, int z)
     {
-        return cells.Add((x, y, z), cell);
+        cells.Add((x, y, z), cell);
     }
 
     public void removeCell(int x, int y, int z)
     {
-        return cells.Remove((x, y, z));
+        cells.Remove((x, y, z));
     }
 
+    public ICollection getKeys()
+    {
+        return cells.Keys;
+    }
 }

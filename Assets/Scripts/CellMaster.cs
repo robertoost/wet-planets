@@ -106,14 +106,17 @@ public class CellMaster : MonoBehaviour
     }
 
     // Get an interpolated data value from the grid.
-    //TODO: Some cells might not exist and need to be skipped, see paper Figure 5
+    // Some cells might not exist and will be skipped, see Figure 5 in the paper
     float getInterpolatedValue(float x, float y, float z, int index)
     {
+        // Convert to integer to get the rounded down indices of the cell.
         (int i, int j, int k) = ((int)x, (int)y, (int)z);
 
+        // Get the current cell and neigbouring cells.
         Cell[] cellArray = {cells[i, j, k], cells[i + 1, j, k], cells[i, j + 1, k], cells[i + 1, j + 1, k],
                                   cells[i, j, k + 1], cells[i + 1, j, k + 1], cells[i, j + 1, k + 1], cells[i + 1, j + 1, k + 1] };
-
+        
+        // Get the summed velocity of every cell. If the cell doesn't exist, it won't be counted.
         float velocitySum = (i + 1 - x) * (j + 1 - y) * (k + 1 - z) * (cellArray[0] ? cellArray[0].velocity[index] : 0)
             + (x - i) * (j + 1 - y) * (k + 1 - z) * (cellArray[1] ? cellArray[1].velocity[index] : 0)
             + (i + 1 - x) * (y - j) * (k + 1 - z) * (cellArray[2] ? cellArray[2].velocity[index] : 0)
@@ -123,6 +126,7 @@ public class CellMaster : MonoBehaviour
             + (i + 1 - x) * (y - j) * (z - k) * (cellArray[6] ? cellArray[6].velocity[index] : 0)
             + (x - i) * (y - j) * (z - k) * (cellArray[7] ? cellArray[7].velocity[index] : 0);
 
+        // Get the summed weight for every cell. If a corresponding cell doesn't exist, don't count that weight.
         float weightSum = (i + 1 - x) * (j + 1 - y) * (k + 1 - z) * (cellArray[0] ? 1 : 0)
             + (x - i) * (j + 1 - y) * (k + 1 - z) * (cellArray[1] ? 1 : 0)
             + (i + 1 - x) * (y - j) * (k + 1 - z) * (cellArray[2] ? 1 : 0)
@@ -132,9 +136,12 @@ public class CellMaster : MonoBehaviour
             + (i + 1 - x) * (y - j) * (z - k) * (cellArray[6] ? 1 : 0)
             + (x - i) * (y - j) * (z - k) * (cellArray[7] ? 1 : 0);
 
+        // Find the weighted interpolated value
         return velocitySum / weightSum;
     }
 
+    // Apply gravity to every cell's velocity.
+    // TODO: Change to incorporate our planetary gravity.
     void externalForces(float timeStep)
     {
         foreach ((int, int, int) key in cells.getKeys())
@@ -144,8 +151,10 @@ public class CellMaster : MonoBehaviour
         }
     }
 
+
     void viscosity(float timeStep)
     {
+        
     }
 
     void findPressure(float timeStep)

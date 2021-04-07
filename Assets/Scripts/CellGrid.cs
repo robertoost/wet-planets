@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class  CellGrid
 {
-    Hashtable cells = new Hashtable();
+    Dictionary<(int, int,int), Cell> cells = new Dictionary<(int, int,int), Cell>();
     public Cell this[int x, int y, int z]
     {
         get { return (Cell) cells[(x, y, z)]; }

@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -69,25 +70,27 @@ public class CellMaster : MonoBehaviour
 
     void convection(float timeStep)
     {
-        foreach ((int x, int y, int z) in cells.getKeys())
+        foreach ((int,int,int) key in cells.getKeys())
         {
-            Cell currentCell = cells[x, y, z];
+            (int i, int j, int k) = key;
+            Cell currentCell = cells[i, j, k];
             // Extraction location of cell
-            locationCell = currentCell.location;
-            x = locationCell.x; y = locationCell.y; z = locationCell.z;
+            Vector3 locationCell = currentCell.location;
+            float x = locationCell.x; float y = locationCell.y; float z = locationCell.z;
             
             // Find velocity
             Vector3 V = getVelocity(x, y, z);
-            V = getVelocity(x + 0.5 * timeStep * V.x, y + 0.5 * timeStep * V.y, z + 0.5 * timeStep * V.z);
+            V = getVelocity(x + 0.5f * timeStep * V.x, y + 0.5f * timeStep * V.y, z + 0.5f * timeStep * V.z);
 
             // Update velocity of cell
             currentCell.tempVelocity = V;
         }
 
         // Commit velocities
-        foreach ((int x, int y, int z) in cells.getKeys())
+        foreach ((int, int, int) key in cells.getKeys())
         {
-            Cell currentCell = cells[x, y, z];
+            (int i, int j, int k) = key;
+            Cell currentCell = cells[i, j, k];
             currentCell.velocity = currentCell.tempVelocity;
         }
     }
@@ -96,9 +99,9 @@ public class CellMaster : MonoBehaviour
     Vector3 getVelocity(float x, float y, float z)
     {
         Vector3 V;
-        V.x = getInterpolatedValue(x / cellSize, y / cellSize - 0.5, z / cellSize - 0.5, 0);
-        V.y = getInterpolatedValue(x / cellSize - 0.5, y / cellSize, z / cellSize - 0.5, 1);
-        V.z = getInterpolatedValue(x / cellSize - 0.5, y / cellSize - 0.5, z / cellSize, 2);
+        V.x = getInterpolatedValue(x / cellSize, y / cellSize - 0.5f, z / cellSize - 0.5f, 0);
+        V.y = getInterpolatedValue(x / cellSize - 0.5f, y / cellSize, z / cellSize - 0.5f, 1);
+        V.z = getInterpolatedValue(x / cellSize - 0.5f, y / cellSize - 0.5f, z / cellSize, 2);
         return V;
     }
 
@@ -106,14 +109,12 @@ public class CellMaster : MonoBehaviour
     //TODO: Some cells might not exist and need to be skipped, see paper Figure 5
     float getInterpolatedValue(float x, float y, float z, int index)
     {
-        int i = floor(x);
-        int j = floor(y);
-        int k = floor(z);
+        (int i, int j, int k) = ((int)x, (int)y, (int)z);
 
         Cell[] cellArray = {cells[i, j, k], cells[i + 1, j, k], cells[i, j + 1, k], cells[i + 1, j + 1, k],
                                   cells[i, j, k + 1], cells[i + 1, j, k + 1], cells[i, j + 1, k + 1], cells[i + 1, j + 1, k + 1] };
 
-        float velocitySum = (i + 1 - x) * (j + 1 - y) * (k + 1 - z) * (cellArray[0]? cellArray[0].velocity[index] : 0)
+        float velocitySum = (i + 1 - x) * (j + 1 - y) * (k + 1 - z) * (cellArray[0] ? cellArray[0].velocity[index] : 0)
             + (x - i) * (j + 1 - y) * (k + 1 - z) * (cellArray[1] ? cellArray[1].velocity[index] : 0)
             + (i + 1 - x) * (y - j) * (k + 1 - z) * (cellArray[2] ? cellArray[2].velocity[index] : 0)
             + (x - i) * (y - j) * (k + 1 - z) * (cellArray[3] ? cellArray[3].velocity[index] : 0)
@@ -136,9 +137,10 @@ public class CellMaster : MonoBehaviour
 
     void externalForces(float timeStep)
     {
-        foreach ((int x, int y, int z) in cells.getKeys())
+        foreach ((int, int, int) key in cells.getKeys())
         {
-            cells[x, y, z].velocity += new Vector3(0, GRAV * timeStep, 0);
+            (int i, int j, int k) = key;
+            cells[i,j,k].velocity += new Vector3(0, GRAV * timeStep, 0);
         }
     }
 

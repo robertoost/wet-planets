@@ -20,4 +20,8 @@ public class Cell
         velocity = _velocity;
         pressure = _pressure;
     }
+
+    public static implicit operator bool(Cell cell) {
+        return cell != null;
+    }
 }

@@ -16,7 +16,7 @@ public class CellMaster : MonoBehaviour
 
     private const float GRAV = -9.81f;
     public const float VISCOSITY = 0.89f;
-    public const float FLUID_DENSITY = 1.00f;
+    public const float FLUID_DENSITY = 1;
     public const float ATMOSPHERIC_PRESSURE = 101325f;
 
     // Start is called before the first frame update
@@ -62,10 +62,8 @@ public class CellMaster : MonoBehaviour
         //3c. Apply viscosity.
         viscosity(timeStep);
 
-        //3d. Calculate the pressure to satisfy ∇·u=0.
+        //3d. Calculate and apply the pressure to satisfy ∇·u=0.
         pressure(timeStep);
-
-        //3e. Apply the pressure.
 
         //3f. Extrapolate fluid velocities into buffer zone.
 
@@ -229,7 +227,7 @@ public class CellMaster : MonoBehaviour
             Cell currentCell = cells[key];
             int currentCellIndex = cellIndices[currentCell];
 
-            Cell[] fluidNeighbours = {};    // Neighbours that are fluid cells
+            Cell[] fluidNeighbours = { };    // Neighbours that are fluid cells
             int nonSolidCount = 0;          // Number of non-solid neighbours
             int airCount = 0;          // Number of non-solid neighbours
 
@@ -240,16 +238,17 @@ public class CellMaster : MonoBehaviour
             Cell xMin = cells[i - 1, j, k];
             Cell yMin = cells[i, j - 1, k];
             Cell zMin = cells[i, j, k - 1];
-            
-            Cell[] neighbours = {xMax, xMin, yMax, yMin, zMax, zMin}; 
+
+            Cell[] neighbours = { xMax, xMin, yMax, yMin, zMax, zMin };
 
             // Loop through neighbouring cells to analyze their types.
             foreach (Cell neighbour in neighbours)
             {
-                if (neighbour.cellType == Cell.CellType.SOLID ) {
+                if (neighbour.cellType == Cell.CellType.SOLID)
+                {
                     continue;
                 }
-                
+
                 // Count the non solid neighbours for A.
                 nonSolidCount++;
 
@@ -280,8 +279,38 @@ public class CellMaster : MonoBehaviour
         }
 
         // Solve for the actual pressure.
-        Vector<float> pressure = (Vector<float>) A.QR().Solve(B);
+        Vector<float> pressures = (Vector<float>)A.QR().Solve(B);
 
-        
+        // Apply  pressure to velocity
+        int pressureIdx = 0;
+        foreach ((int, int, int) key in cellKeyList)
+        {
+            // Get current cell.
+            (int i, int j, int k) = key;
+            Cell currentCell = cells[i, j, k];
+
+            // Retrieve all neighbours for the current cell.
+            Cell xMin = cells[i - 1, j, k];
+            Cell yMin = cells[i, j - 1, k];
+            Cell zMin = cells[i, j, k - 1];
+
+            // Calculate pressure gradient
+            Vector3 pressureGrad;
+            pressureGrad.x = (xMin ? pressures[pressureIdx] - pressures[cellIndices[xMin]] : 0);
+            pressureGrad.y = (yMin ? pressures[pressureIdx] - pressures[cellIndices[yMin]] : 0);
+            pressureGrad.z = (zMin ? pressures[pressureIdx] - pressures[cellIndices[zMin]] : 0);
+            pressureIdx++;
+
+            // Calculate velocity based on pressure.
+            Vector3 deltaVelocity = -timeStep * pressureGrad / (currentCell.density * cellSize);
+
+            // Set velocity component to zero if pointing into solid cell.
+            if (!xMin || xMin.cellType == Cell.CellType.SOLID) { deltaVelocity.x = 0; }
+            if (!yMin || yMin.cellType == Cell.CellType.SOLID) { deltaVelocity.y = 0; }
+            if (!zMin || zMin.cellType == Cell.CellType.SOLID) { deltaVelocity.z = 0; }
+
+            // Set velocity of current cell with the pressure update
+            currentCell.velocity = currentCell.velocity + deltaVelocity;
+        }
     }
 }

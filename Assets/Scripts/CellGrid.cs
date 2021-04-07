@@ -6,22 +6,26 @@ using UnityEngine;
 public class CellGrid : IEnumerable
 {
     Dictionary<(int, int,int), Cell> cells = new Dictionary<(int, int,int), Cell>();
-    public Cell this[int x, int y, int z]
-    {
-        get { return (Cell) cells[(x, y, z)]; }
-        set { cells[(x, y, z)] = value; }
-    }
 
+    // Indexer for a triple key.
     public Cell this[(int, int, int) key]
     {
         get {
-            return cells[key]; 
+            Cell cell;
+            cells.TryGetValue(key, out cell);
+            return cell;
         }
         set {
             cells[(key)] = value; 
         }
     }
 
+    // Indexer for a set of indices.
+    public Cell this[int x, int y, int z]
+    {
+        get { return this[(x, y, z)]; }
+        set { this[(x, y, z)] = value; }
+    }
     public int Count {
         get { return cells.Count; }
     }

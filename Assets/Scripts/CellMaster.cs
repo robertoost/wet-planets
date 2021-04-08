@@ -375,6 +375,7 @@ public class CellMaster
         commitVelocities();
     }
 
+    // Get only velocity components of cell at given index which border fluid cells
     Vector3 borderFluidVelocityComponents(int i, int j, int k)
     {
         Cell cell = cells[i, j, k];
@@ -387,24 +388,29 @@ public class CellMaster
         return selectedVelocity;
     }
 
+    // Check whether cell in x velocity component is fluid
     bool xMinFluid(int i, int j, int k)
     {
         Cell xMin = cells[i - 1, j, k];
         return (xMin && xMin.cellType == Cell.CellType.FLUID);
     }
 
+    // Check whether cell in y velocity component is fluid
     bool yMinFluid(int i, int j, int k)
     {
         Cell yMin = cells[i, j - 1, k];
         return (yMin && yMin.cellType == Cell.CellType.FLUID);
     }
 
+    // Check whether cell in z velocity component is fluid
     bool zMinFluid(int i, int j, int k)
     {
         Cell zMin = cells[i, j, k - 1];
         return (zMin && zMin.cellType == Cell.CellType.FLUID);
     }
 
+
+    // Calculate and apply pressure
     void pressure(float timeStep)
     {
         int cellCount = cells.Count;
@@ -493,6 +499,7 @@ public class CellMaster
         Vector<float> pressure = A.Evd().Solve(B);      // TODO: Faster than SVD but is only allowed if it's diagonizable, not sure whether it always is
         //Vector<float> pressure = A.SVD().Solve(B);
 
+        // TODO: Apply pressure
         int index = 0;
         foreach ((int, int, int) key in cellKeyList)
         {

@@ -86,9 +86,14 @@ public class CellGrid : IEnumerable
         cells.Add((x, y, z), cell);
     }
 
-    public void removeCell(int x, int y, int z)
+    //public void removeCell(int x, int y, int z)
+    //{
+    //    cells.Remove((x, y, z));
+    //}
+
+    public void removeCell((int, int, int) key)
     {
-        cells.Remove((x, y, z));
+        cells.Remove(key);
     }
 
 

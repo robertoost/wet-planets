@@ -4,56 +4,164 @@ using System.Collections.Generic;
 using UnityEngine;
 using MathNet.Numerics.LinearAlgebra;
 
-public class CellMaster : MonoBehaviour
+public class CellMaster
 {
-    public int x_size;
-    public int y_size;
-    public int z_size;
-    public float cellSize;
+    private Vector3 startLocation;       // Minimum location of grid
+    private int x_size;                  // Width size of grid
+    private int y_size;                  // Height size of grid
+    private int z_size;                  // Depth size of grid
+    private float cellSize;              // Size of cells within grid
 
-    //private List<Cell> cells;
+    // Holds all cells in the grid
     CellGrid cells;
 
+    // Constants
     private const float GRAV = -9.81f;
     public const float VISCOSITY = 0.89f;
     public const float FLUID_DENSITY = 1.00f;
+    public const float AIR_DENSITY = 1.00f;
     public const float ATMOSPHERIC_PRESSURE = 101325f;
 
     // Start is called before the first frame update
-    void Start()
+    public CellMaster(Vector3 _startLocation, int _x_size, int _y_size, int _z_size, float _cellSize)
     {
+        startLocation = _startLocation;
+        x_size = _x_size;
+        y_size = _y_size;
+        z_size = _z_size;
+        cellSize = _cellSize;
+
         cells = new CellGrid();
-        for(int x = 0; x < x_size; x++)
+    }
+
+    //2. Update the grid based on the marker particles (figure 4)
+    // TODO: it seems like there might be too many air cells?
+    public void updateGrid(Particle[] particles)
+    {
+        //set “layer” field of all cells to −1
+        foreach ((int, int, int) key in cells.Keys)
         {
-            for(int y = 0; y < y_size; y++)
+            Cell currentCell = cells[key];
+            currentCell.layer = -1;
+        }
+
+        // update cells that currently have fluid in them by looping through particles
+        for (int p = 0; p < particles.Length; p++)
+        {
+            // Get cell corresponding to particle
+            (int i, int j, int k) = locationToCellIndex(particles[p].getPosition());
+            Cell particleCell = cells[i, j, k];
+
+            // If cell does not yet exist, create it
+            if (!particleCell)
             {
-                for(int z = 0; z < z_size; z++)
+                Vector3 cellLocation = cellIndexToLocation((i, j, k));
+                if (withinBounds(cellLocation))
                 {
-                    // Initialize cell properties
-                    Cell.CellType cellType = Cell.CellType.FLUID;
-                    Vector3 velocity = new Vector3(0, 0, 0);
-                    float pressure = -1;
+                    particleCell = new Cell(Cell.CellType.FLUID, 0, cellLocation);
+                    cells.addCell(particleCell, i, j, k);
+                }
+            } 
+            // If cell exists, set cell type to fluid and layer to 0
+            else if (particleCell.cellType != Cell.CellType.SOLID)
+            {
+                particleCell.cellType = Cell.CellType.FLUID;
+                particleCell.layer = 0;
+            }
+        }
 
-                    // Initialize location
-                    float x_loc = (float)(0.5 + x) * cellSize;
-                    float y_loc = (float)(0.5 + y) * cellSize;
-                    float z_loc = (float)(0.5 + z) * cellSize;
-                    Vector3 location = new Vector3(x_loc, y_loc, z_loc);
+        // create a buffer zone around the fluid
+        for(int layer = 1; layer <= 2; layer++)      // TODO: replace with for i = 1 to max(2, dkc f le)
+        {
+            // Temp storage for new cells, store both keys and cells themselves: TODO make more efficient?
+            List<(int, int, int)> neighboursVisited = new List<(int, int, int)>();
+            List<Cell> newCells = new List<Cell>();
 
-                    // Create new cell
-                    Cell newCell = new Cell(cellType, location, velocity, pressure, FLUID_DENSITY);
-                    //cells.Add(newCell);
-                    cells.addCell(newCell, x, y, z);
+            // Loop through cells existing either from previous timestep or cells that were added because they contain particles
+            foreach ((int, int, int) key in cells.Keys)
+            {
+                // Select cell
+                (int i, int j, int k) = key;
+                Cell currentCell = cells[key];
+
+                // If the cell is not a solid and in current layer visit all its neighbours, to expand grid
+                if (currentCell.cellType != Cell.CellType.SOLID && currentCell.layer == layer - 1)
+                {
+                    // Create list of neighbouring cells.
+                    (int, int, int)[] neighbourArray = {(i + 1, j, k), (i - 1, j, k), (i, j + 1, k), 
+                        (i, j - 1, k), (i, j, k + 1), (i, j, k - 1) };
+
+                    foreach((int, int, int) neighbourKey in neighbourArray)
+                    {
+                        // Check whether neighbour has already been visited
+                        if (neighboursVisited.Contains(neighbourKey)) {
+                            continue;
+                        }
+
+                        // Check whether neighbour cell already exists
+                        Cell neighbour = cells[neighbourKey];
+                        if (neighbour)
+                        {
+                            // If cell exists and is not yet marked as current fluid layer (layer == 0) and not solid
+                            // make the cell air.
+                            if(neighbour.layer == -1 && neighbour.cellType != Cell.CellType.SOLID)
+                            {
+                                neighbour.cellType = Cell.CellType.AIR;
+                                neighbour.layer = layer;
+                            }
+                        }
+                        else
+                        {
+                            // If cell does not yet exist, create it. If it is within simulation bounds, make it air
+                            // otherwise make it solid.
+                            Vector3 locationNeighbour = cellIndexToLocation(neighbourKey);
+                            if (withinBounds(locationNeighbour))
+                            {
+                                neighbour = new Cell(Cell.CellType.AIR, layer, locationNeighbour);
+                            }
+                            else
+                            {
+                                neighbour = new Cell(Cell.CellType.SOLID, layer, locationNeighbour);
+                            }
+
+                            // Store cell and its key in the temporary arrays.
+                            newCells.Add(neighbour);
+                            neighboursVisited.Add(neighbourKey);
+                        }
+                    }
+
                 }
             }
+
+            // Commit temporay cells
+            for(int c = 0; c < newCells.Count; c++)
+            {
+                (int i_neigh, int j_neigh, int k_neigh) = neighboursVisited[c];
+                cells.addCell(newCells[c], i_neigh, j_neigh, k_neigh);
+            }
+        }
+
+        // Find all unused cells (cells with layer -1)
+        List<(int, int, int)> unusedCells = new List<(int, int, int)>();
+        foreach ((int, int, int) key in cells.Keys)
+        {
+            Cell currentCell = cells[key];
+            if (currentCell.layer == -1)
+            {
+                unusedCells.Add(key);
+            }
+        }
+
+        // Remove unused cells.
+        foreach ((int, int, int) key in unusedCells)
+        {
+            cells.removeCell(key);
         }
     }
 
-    // Update is called once per frame
-    void FixedUpdate()
+    // 3. Advance the velocity field, u
+    public void velocityUpdate(float timeStep)
     {
-        float timeStep = Time.fixedDeltaTime;
-
         //3a. Apply convection using a backwards particle trace.
         convection(timeStep);
 
@@ -64,13 +172,58 @@ public class CellMaster : MonoBehaviour
         viscosity(timeStep);
 
         //3d. Calculate the pressure to satisfy ∇·u=0.
-            //3e. Apply the pressure.
+        //3e. Apply the pressure.
         pressure(timeStep);
 
         //3f. Extrapolate fluid velocities into buffer zone.
         extrapolateVelocities(timeStep);
 
         //3g. Set solid cell velocities.
+    }
+
+    // Get velocity of particle at location location.
+    public Vector3 getVelocity(Vector3 location)
+    {
+        // Return velocity of cell at grid coordinates.
+        return cells[locationToCellIndex(location)].velocity;
+    }
+
+    // Get location in scene from cell index
+    Vector3 cellIndexToLocation((int, int, int) cellIndex)
+    {
+        (int i, int j, int k) = cellIndex;
+        float x_loc = startLocation.x + (float)(0.5 + i) * cellSize;
+        float y_loc = startLocation.y + (float)(0.5 + j) * cellSize;
+        float z_loc = startLocation.z + (float)(0.5 + k) * cellSize;
+        Vector3 location = new Vector3(x_loc, y_loc, z_loc);
+        return location;
+    }
+
+    // Get cell of particle at location location.
+    (int, int, int) locationToCellIndex(Vector3 location)
+    {
+        // Find grid coordinates.
+        int i = (int)((location.x - startLocation.x) / cellSize);
+        int j = (int)((location.y - startLocation.z) / cellSize);
+        int k = (int)((location.z - startLocation.y) / cellSize);
+
+        // Return velocity of cell at grid coordinates.
+        return (i, j, k);
+    }
+
+    // Check whether cell location is within simulation bounds
+    bool withinBounds(Vector3 location)
+    {
+        float x_min = location[0] - 0.5f * cellSize;
+        float y_min = location[1] - 0.5f * cellSize;
+        float z_min = location[2] - 0.5f * cellSize;
+
+        float x_max = location[0] + 0.5f * cellSize;
+        float y_max = location[1] + 0.5f * cellSize;
+        float z_max = location[2] + 0.5f * cellSize;
+
+        return (x_min >= startLocation[0] && y_min >= startLocation[1] && z_min >= startLocation[2]
+            && x_max <= (startLocation[0] + x_size) && y_max <= (startLocation[1] + y_size) && z_max <= (startLocation[2] + z_size));
     }
 
     // Replace all cells' tempvelocities with their current velocities.
@@ -82,6 +235,8 @@ public class CellMaster : MonoBehaviour
             currentCell.velocity = currentCell.tempVelocity;
         }
     }
+
+    // Find velocities invoked from convection.
     void convection(float timeStep)
     {
         foreach (Cell currentCell in cells)
@@ -100,8 +255,6 @@ public class CellMaster : MonoBehaviour
 
         commitVelocities();
     }
-
-
 
     // Get the interpolated velocity at a point in space.
     Vector3 getVelocity(float x, float y, float z)
@@ -277,28 +430,29 @@ public class CellMaster : MonoBehaviour
 
 
             // In matrix B, set a value based off the divergence in the velocity field for the current cell.
-            B[currentCellIndex] = currentCell.density * cellSize * divergence / timeStep - airCount * ATMOSPHERIC_PRESSURE;
+            B[currentCellIndex] = currentCell.density() * cellSize * divergence / timeStep - airCount * ATMOSPHERIC_PRESSURE;
         }
 
-        // Solve for the actual pressure.
-        Vector<float> pressure = (Vector<float>) A.QR().Solve(B);
+        //// Solve for the actual pressure.
+        //Vector<float> pressure = A.QR().Solve(B);
 
-        int index = 0;
-        foreach((int,int,int) key in cellKeyList) {
-            
-            // Get the current key, cell, and cell index.
-            (int i, int j, int k) = key;
-            Cell currentCell = cells[key];
-            int currentCellIndex = cellIndices[currentCell];
-            index++;
+        //int index = 0;
+        //foreach ((int, int, int) key in cellKeyList)
+        //{
 
-            // Retrieve all neighbours for the current cell.
-            Cell xMin = cells[i - 1, j, k];
-            Cell yMin = cells[i, j - 1, k];
-            Cell zMin = cells[i, j, k - 1];
-            
-            Cell[] neighbours = {xMin, yMin, zMin}; 
-        }
+        //    // Get the current key, cell, and cell index.
+        //    (int i, int j, int k) = key;
+        //    Cell currentCell = cells[key];
+        //    int currentCellIndex = cellIndices[currentCell];
+        //    index++;
+
+        //    // Retrieve all neighbours for the current cell.
+        //    Cell xMin = cells[i - 1, j, k];
+        //    Cell yMin = cells[i, j - 1, k];
+        //    Cell zMin = cells[i, j, k - 1];
+
+        //    Cell[] neighbours = { xMin, yMin, zMin };
+        //}
     }
 
     void extrapolateVelocities(float timeStep) {

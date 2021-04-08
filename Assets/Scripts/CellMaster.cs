@@ -469,6 +469,7 @@ public class CellMaster
             // Loop through non-fluid cells
             foreach((int, int, int) key in cells.Keys)
             {
+                (int i, int j, int k) = key;
                 Cell currentCell = cells[key];
                 if(currentCell.layer != -1) { continue; }   // Skip if the cell is a fluid cell
 
@@ -486,11 +487,15 @@ public class CellMaster
                 List<Cell> visitedNeighbours = new List<Cell>();
                 foreach (Cell neighbour in neighbours)
                 {
-                    if(neighbour.layer == -1)
+                    if(neighbour && neighbour.layer == -1)
                     {
                         visitedNeighbours.Add(neighbour);
                     }
                 }
+
+                // If no such neighbour exists skip to next
+                int numberOfVisited = visitedNeighbours.Count;
+                if(numberOfVisited == 0) { continue; }
 
                 // Average velocity of visitedNeighbours
                 Vector3 totalVelocity = new Vector3(0, 0, 0);
@@ -498,18 +503,18 @@ public class CellMaster
                 {
                     totalVelocity += neighbour.velocity;
                 }
-                Vector3 averageVelocity = totalVelocity / visitedNeighbours.Count;
+                Vector3 averageVelocity = totalVelocity / numberOfVisited;
 
                 // For velocity components of cell not bordering fluid cells set uj to the average 
                 // of the neighbors of Cin which N.layer ==i−1
-                if (xMin.cellType != Cell.CellType.FLUID) {
+                if (xMin && xMin.cellType != Cell.CellType.FLUID) {
                     currentCell.velocity.x = averageVelocity.x;
                 }
-                if (yMin.cellType != Cell.CellType.FLUID)
+                if (yMin && yMin.cellType != Cell.CellType.FLUID)
                 {
                     currentCell.velocity.y = averageVelocity.y;
                 }
-                if (zMin.cellType != Cell.CellType.FLUID)
+                if (zMin && zMin.cellType != Cell.CellType.FLUID)
                 {
                     currentCell.velocity.z = averageVelocity.z;
                 }

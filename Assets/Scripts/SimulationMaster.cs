@@ -47,6 +47,7 @@ public class SimulationMaster : MonoBehaviour
         for (int i = 0; i < particles.Length; i++)
         {
             Particle particle = particles[i];
+            Debug.Log("particle loc " + particle.getPosition().ToString());
             Vector3 velocityParticle = cellMaster.getVelocity(particle.getPosition());
             particles[i].locationUpdate(timeStep, velocityParticle);
         }

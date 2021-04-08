@@ -85,7 +85,7 @@ public class CellMaster
                 Cell currentCell = cells[key];
 
                 // If the cell is not a solid and in current layer visit all its neighbours, to expand grid
-                if (currentCell.cellType != Cell.CellType.SOLID && currentCell.layer == layer - 1)
+                if (currentCell.layer == layer - 1)
                 {
                     // Create list of neighbouring cells.
                     (int, int, int)[] neighbourArray = {(i + 1, j, k), (i - 1, j, k), (i, j + 1, k), 
@@ -104,9 +104,9 @@ public class CellMaster
                         {
                             // If cell exists and is not yet marked as current fluid layer (layer == 0) and not solid
                             // make the cell air.
-                            if(neighbour.layer == -1 && neighbour.cellType != Cell.CellType.SOLID)
+                            if(neighbour.layer == -1)
                             {
-                                neighbour.cellType = Cell.CellType.AIR;
+                                if(neighbour.cellType != Cell.CellType.SOLID) { neighbour.cellType = Cell.CellType.AIR; }
                                 neighbour.layer = layer;
                             }
                         }
@@ -173,19 +173,25 @@ public class CellMaster
 
         //3d. Calculate the pressure to satisfy ∇·u=0.
         //3e. Apply the pressure.
-        pressure(timeStep);
+        //pressure(timeStep);
 
         //3f. Extrapolate fluid velocities into buffer zone.
-        extrapolateVelocities(timeStep);
+        extrapolateVelocities();
 
         //3g. Set solid cell velocities.
+        setSolidCells();
     }
 
     // Get velocity of particle at location location.
     public Vector3 getVelocity(Vector3 location)
     {
+        Debug.Log("requested " + location.ToString());
+        Debug.Log("requested " + locationToCellIndex(location).ToString());
+        Debug.Log("velocity " + cells[locationToCellIndex(location)].velocity);
+
         // Return velocity of cell at grid coordinates.
         return cells[locationToCellIndex(location)].velocity;
+        //return getVelocity(location.x, location.y, location.z); // TODO: switch to this version
     }
 
     // Get location in scene from cell index
@@ -214,16 +220,16 @@ public class CellMaster
     // Check whether cell location is within simulation bounds
     bool withinBounds(Vector3 location)
     {
-        float x_min = location[0] - 0.5f * cellSize;
-        float y_min = location[1] - 0.5f * cellSize;
-        float z_min = location[2] - 0.5f * cellSize;
+        //float x_min = location[0];
+        //float y_min = location[1];
+        //float z_min = location[2];
 
-        float x_max = location[0] + 0.5f * cellSize;
-        float y_max = location[1] + 0.5f * cellSize;
-        float z_max = location[2] + 0.5f * cellSize;
+        //float x_max = location[0];
+        //float y_max = location[1];
+        //float z_max = location[2];
 
-        return (x_min >= startLocation[0] && y_min >= startLocation[1] && z_min >= startLocation[2]
-            && x_max <= (startLocation[0] + x_size) && y_max <= (startLocation[1] + y_size) && z_max <= (startLocation[2] + z_size));
+        return (location.x > startLocation.x && location.y > startLocation.y && location.z > startLocation.z
+            && location.x < (startLocation.x + x_size) && location.y < (startLocation.y + y_size) && location.z < (startLocation.z + z_size));
     }
 
     // Replace all cells' tempvelocities with their current velocities.
@@ -239,8 +245,12 @@ public class CellMaster
     // Find velocities invoked from convection.
     void convection(float timeStep)
     {
-        foreach (Cell currentCell in cells)
+        foreach ((int, int, int) key in cells.Keys)
         {
+            // Get cell
+            (int i, int j, int k) = key;
+            Cell currentCell = cells[key];
+
             // Extraction location of cell
             Vector3 locationCell = currentCell.location;
             float x = locationCell.x; float y = locationCell.y; float z = locationCell.z;
@@ -249,8 +259,15 @@ public class CellMaster
             Vector3 V = getVelocity(x, y, z);
             V = getVelocity(x + 0.5f * timeStep * V.x, y + 0.5f * timeStep * V.y, z + 0.5f * timeStep * V.z);
 
+            // Get neighbours into which velocity components point
+            Cell xMin = cells[i - 1, j, k];
+            Cell yMin = cells[i, j - 1, k];
+            Cell zMin = cells[i, j, k - 1];
+
             // Update velocity of cell
-            currentCell.tempVelocity = V;
+            if (xMin && (xMin.cellType == Cell.CellType.FLUID || currentCell.cellType == Cell.CellType.FLUID)) { currentCell.tempVelocity.x = V.x; }
+            if (yMin && (yMin.cellType == Cell.CellType.FLUID || currentCell.cellType == Cell.CellType.FLUID)) { currentCell.tempVelocity.y = V.y; }
+            if (zMin && (zMin.cellType == Cell.CellType.FLUID || currentCell.cellType == Cell.CellType.FLUID)) { currentCell.tempVelocity.z = V.z; }
         }
 
         commitVelocities();
@@ -302,12 +319,21 @@ public class CellMaster
     }
 
     // Apply gravity to every cell's velocity.
-    // TODO: Change to incorporate our planetary gravity.
+    // TODO: Change to incorporate our planetary gravity. In this case also check other neighbours.
     void externalForces(float timeStep)
     {
-        foreach (Cell cell in cells)
+        foreach ((int, int, int) key in cells.Keys)
         {
-            cell.velocity += new Vector3(0, GRAV * timeStep, 0);
+            // Get cell
+            (int i, int j, int k) = key;
+            Cell currentCell = cells[key];
+
+            // Only apply to velocity components that border fluid cells            
+            Cell yMin = cells[i, j - 1, k];
+            if (yMin && (yMin.cellType == Cell.CellType.FLUID || currentCell.cellType == Cell.CellType.FLUID))
+            {
+                currentCell.velocity += new Vector3(0, GRAV * timeStep, 0);
+            }
         }
     }
 
@@ -320,33 +346,74 @@ public class CellMaster
 
             Cell currentCell = cells[key];
 
-            // Create list of neighbouring cells.
-            Cell[] cellArray = {cells[i + 1, j, k], cells[i - 1, j, k], 
-                                cells[i, j + 1, k], cells[i, j - 1, k], 
-                                cells[i, j, k + 1], cells[i, j, k - 1] };
+            // Retrieve all neighbours for the current cell.
+            Cell xMin = cells[i - 1, j, k];
+            Cell yMin = cells[i, j - 1, k];
+            Cell zMin = cells[i, j, k - 1];
 
+            (int, int, int)[] neighbours = { (i + 1, j, k), (i, j + 1, k), (i, j, k + 1), (i - 1, j, k), (i, j - 1, k), (i, j, k - 1) };
 
             // TODO: Do we actually need to decrease the laplacian counter if a value is omitted?
             // calculate the laplacian by adding neighbouring velocities together.
             int laplacianCounter = 0;
             Vector3 laplacian = Vector3.zero;
-            foreach (Cell cell in cellArray) {
+            foreach ((int, int, int) neighbourKey in neighbours) {
 
-                // If a cell exists, include it in the laplacian.
-                if ( cell ) {
-                    laplacian += cell.velocity;
-                    laplacianCounter++;
+                // Extract indices
+                (int i_neigh, int j_neigh, int k_neigh) = neighbourKey;
+                Cell neighbour = cells[neighbourKey];
+
+                // If a cell exists include it in the laplacian, select only velocity components that point 
+                // into fluid cells using borderFluidVelocityComponents.
+                if (neighbour) {
+                    laplacian += borderFluidVelocityComponents(i_neigh, j_neigh, k_neigh);
+                    //laplacianCounter++; TODO: WHAT TO COUNT?
                 }
             }
 
             // Subtract current cell velocity multiplied by the amount of included neighbours.
-            laplacian -= laplacianCounter * currentCell.velocity;
-            
-            // Set the viscous velicity as the temp velocity.
-            currentCell.tempVelocity = currentCell.velocity + timeStep * VISCOSITY * laplacian;
+            laplacian -= laplacianCounter * currentCell.velocity;   // TODO: FIX laplacianCounter
+
+            // Get velocity from viscosity
+            Vector3 newVelocity = currentCell.velocity + timeStep * VISCOSITY * laplacian;
+
+            // Set the viscous velicity as the temp velocity
+            currentCell.tempVelocity.x = ((xMin && (xMin.cellType == Cell.CellType.FLUID || currentCell.cellType == Cell.CellType.FLUID)) ? newVelocity.x : currentCell.velocity.x);
+            currentCell.tempVelocity.y = ((yMin && (yMin.cellType == Cell.CellType.FLUID || currentCell.cellType == Cell.CellType.FLUID)) ? newVelocity.y : currentCell.velocity.y);
+            currentCell.tempVelocity.z = ((zMin && (zMin.cellType == Cell.CellType.FLUID || currentCell.cellType == Cell.CellType.FLUID)) ? newVelocity.z : currentCell.velocity.z);
         }
 
         commitVelocities();
+    }
+
+    Vector3 borderFluidVelocityComponents(int i, int j, int k)
+    {
+        Cell cell = cells[i, j, k];
+        Vector3 selectedVelocity = new Vector3(0f, 0f, 0f);
+
+        if (xMinFluid(i, j, k)) { selectedVelocity.x = cell.velocity.x; }
+        if (yMinFluid(i, j, k)) { selectedVelocity.y = cell.velocity.y; }
+        if (zMinFluid(i, j, k)) { selectedVelocity.z = cell.velocity.z; }
+
+        return selectedVelocity;
+    }
+
+    bool xMinFluid(int i, int j, int k)
+    {
+        Cell xMin = cells[i - 1, j, k];
+        return (xMin && xMin.cellType == Cell.CellType.FLUID);
+    }
+
+    bool yMinFluid(int i, int j, int k)
+    {
+        Cell yMin = cells[i, j - 1, k];
+        return (yMin && yMin.cellType == Cell.CellType.FLUID);
+    }
+
+    bool zMinFluid(int i, int j, int k)
+    {
+        Cell zMin = cells[i, j, k - 1];
+        return (zMin && zMin.cellType == Cell.CellType.FLUID);
     }
 
     void pressure(float timeStep)
@@ -433,30 +500,30 @@ public class CellMaster
             B[currentCellIndex] = currentCell.density() * cellSize * divergence / timeStep - airCount * ATMOSPHERIC_PRESSURE;
         }
 
-        //// Solve for the actual pressure.
-        //Vector<float> pressure = A.QR().Solve(B);
+        // Solve for the actual pressure.
+        Vector<float> pressure = A.QR().Solve(B);
 
-        //int index = 0;
-        //foreach ((int, int, int) key in cellKeyList)
-        //{
+        int index = 0;
+        foreach ((int, int, int) key in cellKeyList)
+        {
 
-        //    // Get the current key, cell, and cell index.
-        //    (int i, int j, int k) = key;
-        //    Cell currentCell = cells[key];
-        //    int currentCellIndex = cellIndices[currentCell];
-        //    index++;
+            // Get the current key, cell, and cell index.
+            (int i, int j, int k) = key;
+            Cell currentCell = cells[key];
+            int currentCellIndex = cellIndices[currentCell];
+            index++;
 
-        //    // Retrieve all neighbours for the current cell.
-        //    Cell xMin = cells[i - 1, j, k];
-        //    Cell yMin = cells[i, j - 1, k];
-        //    Cell zMin = cells[i, j, k - 1];
+            // Retrieve all neighbours for the current cell.
+            Cell xMin = cells[i - 1, j, k];
+            Cell yMin = cells[i, j - 1, k];
+            Cell zMin = cells[i, j, k - 1];
 
-        //    Cell[] neighbours = { xMin, yMin, zMin };
-        //}
+            Cell[] neighbours = { xMin, yMin, zMin };
+        }
     }
 
     // Extrapolate velocities to new cells
-    void extrapolateVelocities(float timeStep) {
+    void extrapolateVelocities() {
         // set layer field to 0 for fluid cells and −1 for non fluid cells
         foreach ((int, int, int) key in cells.Keys)
         {
@@ -521,6 +588,31 @@ public class CellMaster
 
                 currentCell.layer = layer;
             }
+        }
+    }
+
+    // Set velocities of solid cells
+    void setSolidCells()
+    {
+        // Set velocity components that point into solid cells from liquid or air cells to zero.
+        foreach ((int, int, int) key in cells.Keys)
+        {
+            // Get cell
+            (int i, int j, int k) = key;
+            Cell currentCell = cells[key];
+
+            // If cell is SOLID, skip this cell
+            if(currentCell.cellType == Cell.CellType.SOLID) { continue; }
+
+            // Get neighbours into which velocity components point
+            Cell xMin = cells[i - 1, j, k];
+            Cell yMin = cells[i, j - 1, k];
+            Cell zMin = cells[i, j, k - 1];
+
+            // Set velocity component to zero if it points into solid neighbour.
+            if (xMin && xMin.cellType == Cell.CellType.SOLID) { currentCell.velocity.x = 0; }
+            if (yMin && yMin.cellType == Cell.CellType.SOLID) { currentCell.velocity.y = 0; }
+            if (zMin && zMin.cellType == Cell.CellType.SOLID) { currentCell.velocity.z = 0; }
         }
     }
 }

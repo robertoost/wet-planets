@@ -455,7 +455,67 @@ public class CellMaster
         //}
     }
 
+    // Extrapolate velocities to new cells
     void extrapolateVelocities(float timeStep) {
+        // set layer field to 0 for fluid cells and −1 for non fluid cells
+        foreach ((int, int, int) key in cells.Keys)
+        {
+            Cell currentCell = cells[key];
+            currentCell.layer = ((currentCell.cellType == Cell.CellType.FLUID) ? 0 : -1);
+        }
 
+        for (int layer = 1; layer <= 2; layer++)      // TODO: replace with for i = 1 to max(2, dkc f le)
+        { 
+            // Loop through non-fluid cells
+            foreach((int, int, int) key in cells.Keys)
+            {
+                Cell currentCell = cells[key];
+                if(currentCell.layer != -1) { continue; }   // Skip if the cell is a fluid cell
+
+                // Retrieve all neighbours for the current cell.
+                Cell xMax = cells[i + 1, j, k];
+                Cell yMax = cells[i, j + 1, k];
+                Cell zMax = cells[i, j, k + 1];
+                Cell xMin = cells[i - 1, j, k];
+                Cell yMin = cells[i, j - 1, k];
+                Cell zMin = cells[i, j, k - 1];
+
+                Cell[] neighbours = { xMax, xMin, yMax, yMin, zMax, zMin };
+
+                // Check whether cell has a neighbour s.t. neighbour.layer == -1
+                List<Cell> visitedNeighbours = new List<Cell>();
+                foreach (Cell neighbour in neighbours)
+                {
+                    if(neighbour.layer == -1)
+                    {
+                        visitedNeighbours.Add(neighbour);
+                    }
+                }
+
+                // Average velocity of visitedNeighbours
+                Vector3 totalVelocity = new Vector3(0, 0, 0);
+                foreach(Cell neighbour in visitedNeighbours)
+                {
+                    totalVelocity += neighbour.velocity;
+                }
+                Vector3 averageVelocity = totalVelocity / visitedNeighbours.Count;
+
+                // For velocity components of cell not bordering fluid cells set uj to the average 
+                // of the neighbors of Cin which N.layer ==i−1
+                if (xMin.cellType != Cell.CellType.FLUID) {
+                    currentCell.velocity.x = averageVelocity.x;
+                }
+                if (yMin.cellType != Cell.CellType.FLUID)
+                {
+                    currentCell.velocity.y = averageVelocity.y;
+                }
+                if (zMin.cellType != Cell.CellType.FLUID)
+                {
+                    currentCell.velocity.z = averageVelocity.z;
+                }
+
+                currentCell.layer = layer;
+            }
+        }
     }
 }

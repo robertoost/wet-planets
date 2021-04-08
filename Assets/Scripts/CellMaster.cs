@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using MathNet.Numerics.LinearAlgebra;
+using MathNet.Numerics.LinearAlgebra.Solvers;
 
 public class CellMaster
 {
@@ -173,7 +174,7 @@ public class CellMaster
 
         //3d. Calculate the pressure to satisfy ∇·u=0.
         //3e. Apply the pressure.
-        //pressure(timeStep);
+        pressure(timeStep);
 
         //3f. Extrapolate fluid velocities into buffer zone.
         extrapolateVelocities();
@@ -185,10 +186,6 @@ public class CellMaster
     // Get velocity of particle at location location.
     public Vector3 getVelocity(Vector3 location)
     {
-        Debug.Log("requested " + location.ToString());
-        Debug.Log("requested " + locationToCellIndex(location).ToString());
-        Debug.Log("velocity " + cells[locationToCellIndex(location)].velocity);
-
         // Return velocity of cell at grid coordinates.
         return cells[locationToCellIndex(location)].velocity;
         //return getVelocity(location.x, location.y, location.z); // TODO: switch to this version
@@ -220,14 +217,6 @@ public class CellMaster
     // Check whether cell location is within simulation bounds
     bool withinBounds(Vector3 location)
     {
-        //float x_min = location[0];
-        //float y_min = location[1];
-        //float z_min = location[2];
-
-        //float x_max = location[0];
-        //float y_max = location[1];
-        //float z_max = location[2];
-
         return (location.x > startLocation.x && location.y > startLocation.y && location.z > startLocation.z
             && location.x < (startLocation.x + x_size) && location.y < (startLocation.y + y_size) && location.z < (startLocation.z + z_size));
     }
@@ -501,7 +490,8 @@ public class CellMaster
         }
 
         // Solve for the actual pressure.
-        Vector<float> pressure = A.QR().Solve(B);
+        Vector<float> pressure = A.Evd().Solve(B);      // TODO: Faster than SVD but is only allowed if it's diagonizable, not sure whether it always is
+        //Vector<float> pressure = A.SVD().Solve(B);
 
         int index = 0;
         foreach ((int, int, int) key in cellKeyList)

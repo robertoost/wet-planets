@@ -450,6 +450,7 @@ public class CellMaster
         // Create a vector B to solve the A matrix for P later on.
         Vector<float> B = CreateVector.Dense<float>(fluidCount);
 
+        // TODO: “Ghost” pressure for solid walls?
         foreach ((int, int, int) key in fluidCellKeyList)
         {
             // Get the current key, cell, and cell index.
@@ -461,7 +462,8 @@ public class CellMaster
 
             int currentCellIndex = cellIndices[currentCell];        // Get corresponding row in matrix.
             Cell[] fluidNeighbours = {};                            // Neighbours that are fluid cells
-            int nonSolidCount = 0;                                  // Number of non-solid neighbours
+            int nonSolidNeighCount = 0;                                  // Number of non-solid neighbours
+            int fluidNeighCount = 0;
 
             // Retrieve all neighbours for the current cell.
             Cell xMax = cells[i + 1, j, k];
@@ -479,32 +481,30 @@ public class CellMaster
                 if (neighbour.cellType == Cell.CellType.SOLID ) {
                     continue;
                 }
-                
+
                 // Count the non solid neighbours for A.
-                nonSolidCount++;
+                nonSolidNeighCount++;
 
                 // If a cell is a fluid cell, add 1 at their respective collumn in the A matrix.
                 if (neighbour.cellType == Cell.CellType.FLUID)
                 {
                     int fluidCellIndex = cellIndices[neighbour];
                     A[currentCellIndex, fluidCellIndex] = 1;
+                    fluidNeighCount++;
                 }
             }
 
             // In matrix A, set the current cell to the negative amount of non-solid neighbours.
-            A[currentCellIndex, currentCellIndex] = -nonSolidCount;
+            A[currentCellIndex, currentCellIndex] = -nonSolidNeighCount;
 
             // Calculate the divergence, setting to 0 for velocity components pointing into solid cells.
-            //float divergence = xMax.velocity[0] - (xMin.cellType != Cell.CellType.SOLID ? currentCell.velocity[0] : 0)
-            //                    + yMax.velocity[1] - (yMin.cellType != Cell.CellType.SOLID ? currentCell.velocity[1] : 0)
-            //                    + zMax.velocity[2] - (zMin.cellType != Cell.CellType.SOLID ? currentCell.velocity[2] : 0);
-            float divergence = (xMin.cellType != Cell.CellType.SOLID ? xMax.velocity[0] - currentCell.velocity[0] : 0)
-                                + (yMin.cellType != Cell.CellType.SOLID ? yMax.velocity[1] - currentCell.velocity[1] : 0)
-                                + (zMin.cellType != Cell.CellType.SOLID ? zMax.velocity[2] - currentCell.velocity[2] : 0);
+            float divergence = xMax.velocity[0] - (xMin.cellType != Cell.CellType.SOLID ? currentCell.velocity[0] : 0)
+                                + yMax.velocity[1] - (yMin.cellType != Cell.CellType.SOLID ? currentCell.velocity[1] : 0)
+                                + zMax.velocity[2] - (zMin.cellType != Cell.CellType.SOLID ? currentCell.velocity[2] : 0);
 
             // In matrix B, set a value based off the divergence in the velocity field for the current cell.
-            int airCount = nonSolidCount - fluidCount;
-            B[currentCellIndex] = currentCell.density() * cellSize * divergence / timeStep - airCount * atmospheric_pressure;
+            int airNeighCount = nonSolidNeighCount - fluidNeighCount;
+            B[currentCellIndex] = currentCell.density() * cellSize * divergence / timeStep - airNeighCount * atmospheric_pressure;
         }
 
         // Solve for the actual pressure.
@@ -530,32 +530,20 @@ public class CellMaster
             Cell zMin = cells[i, j, k - 1];
 
             // Calculate gradient of the pressure; only for velocity components bordering non-solid cells.
-            // TODO: “Ghost” pressure for solid walls
             Vector3 pressureGradient = new Vector3(0f,  0f, 0f);
             if (xMin && xMin.cellType != Cell.CellType.SOLID)
             {
                 pressureGradient.x = cellPressure - (xMin.cellType == Cell.CellType.FLUID ? pressure[cellIndices[xMin]] : atmospheric_pressure);
             }
-            //else if (xMin && xMin.cellType == Cell.CellType.SOLID)
-            //{
-            //    pressureGradient.x = currentCell.density() * cellSize * currentCell.velocity.x / timeStep;
-            //}
             if (yMin && yMin.cellType != Cell.CellType.SOLID)
             {
                 pressureGradient.y = cellPressure - (yMin.cellType == Cell.CellType.FLUID ? pressure[cellIndices[yMin]] : atmospheric_pressure);
             }
-            //else if (yMin && yMin.cellType == Cell.CellType.SOLID)
-            //{
-            //    pressureGradient.y = currentCell.density() * cellSize * currentCell.velocity.y / timeStep;
-            //}
             if (zMin && zMin.cellType != Cell.CellType.SOLID)
             {
                 pressureGradient.z = cellPressure - (zMin.cellType == Cell.CellType.FLUID ? pressure[cellIndices[zMin]] : atmospheric_pressure);
             }
-            //else if (zMin && zMin.cellType == Cell.CellType.SOLID)
-            //{
-            //    pressureGradient.z = currentCell.density() * cellSize * currentCell.velocity.z / timeStep;
-            //}
+
             // Apply to velocity
             currentCell.velocity -= timeStep * pressureGradient / (currentCell.density() * cellSize);
 

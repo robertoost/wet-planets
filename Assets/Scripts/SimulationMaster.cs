@@ -12,6 +12,10 @@ public class SimulationMaster : MonoBehaviour
     public int z_size;                  // Depth size of grid
     public float cellSize;              // Size of cells within grid
 
+    // Constants
+    public float viscosity = 1.0016f;
+    public float atmospheric_pressure = 101.325f;
+
     private CellMaster cellMaster;
     private Particle[] particles;
     private int numberOfParticles;
@@ -20,11 +24,14 @@ public class SimulationMaster : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        cellMaster = new CellMaster(startLocation, x_size, y_size, z_size, cellSize);
+        // Create cell master, responsible for updating grid and its velocities
+        cellMaster = new CellMaster(startLocation, x_size, y_size, z_size, cellSize, viscosity, atmospheric_pressure);
         
+        // Get all particle objects
         GameObject[] particleObjects = GameObject.FindGameObjectsWithTag(particleTag);
         numberOfParticles = particleObjects.Length;
 
+        // Get Particle component from particle objects
         particles = new Particle[numberOfParticles];
         for (int i = 0; i < numberOfParticles; i++)
         {
@@ -43,11 +50,11 @@ public class SimulationMaster : MonoBehaviour
         // 3. Advance the velocity field, u
         cellMaster.velocityUpdate(timeStep);
 
-        // 4. Move the particles throughufor ∆t time.
+        // 4. Move the particles through u for ∆t time.
         for (int i = 0; i < particles.Length; i++)
         {
             Particle particle = particles[i];
-            Vector3 velocityParticle = cellMaster.getVelocity(particle.getPosition());
+            Vector3 velocityParticle = cellMaster.getParticleVelocity(particle.getPosition());
             particles[i].locationUpdate(timeStep, velocityParticle);
         }
     }

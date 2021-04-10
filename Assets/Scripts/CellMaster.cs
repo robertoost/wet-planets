@@ -7,24 +7,26 @@ using MathNet.Numerics.LinearAlgebra.Solvers;
 
 public class CellMaster
 {
+    // User chosen variables in SimulationMaster
     private Vector3 startLocation;       // Minimum location of grid
     private int x_size;                  // Width size of grid
     private int y_size;                  // Height size of grid
     private int z_size;                  // Depth size of grid
     private float cellSize;              // Size of cells within grid
 
+    private float atmospheric_pressure;
+    private float viscosity_const;
+
     // Holds all cells in the grid
     CellGrid cells;
 
     // Constants
     private const float GRAV = -9.81f;
-    public const float VISCOSITY = 0.89f;
-    public const float FLUID_DENSITY = 1.00f;
-    public const float AIR_DENSITY = 1.00f;
-    public const float ATMOSPHERIC_PRESSURE = 101325f;
+    public const float FLUID_DENSITY = 1f;
+    public const float AIR_DENSITY = 1f;
 
     // Start is called before the first frame update
-    public CellMaster(Vector3 _startLocation, int _x_size, int _y_size, int _z_size, float _cellSize)
+    public CellMaster(Vector3 _startLocation, int _x_size, int _y_size, int _z_size, float _cellSize, float _viscosity, float _atmospheric_pressure)
     {
         startLocation = _startLocation;
         x_size = _x_size;
@@ -32,11 +34,13 @@ public class CellMaster
         z_size = _z_size;
         cellSize = _cellSize;
 
+        viscosity_const = _viscosity;
+        atmospheric_pressure = _atmospheric_pressure;
+
         cells = new CellGrid();
     }
 
     //2. Update the grid based on the marker particles (figure 4)
-    // TODO: it seems like there might be too many air cells?
     public void updateGrid(Particle[] particles)
     {
         //set “layer” field of all cells to −1
@@ -184,11 +188,11 @@ public class CellMaster
     }
 
     // Get velocity of particle at location location.
-    public Vector3 getVelocity(Vector3 location)
+    public Vector3 getParticleVelocity(Vector3 location)
     {
         // Return velocity of cell at grid coordinates.
         return cells[locationToCellIndex(location)].velocity;
-        //return getVelocity(location.x, location.y, location.z); // TODO: switch to this version
+        //return getVelocity(location); // TODO: switch to this version
     }
 
     // Get location in scene from cell index
@@ -242,11 +246,10 @@ public class CellMaster
 
             // Extraction location of cell
             Vector3 locationCell = currentCell.location;
-            float x = locationCell.x; float y = locationCell.y; float z = locationCell.z;
-            
+
             // Find velocity
-            Vector3 V = getVelocity(x, y, z);
-            V = getVelocity(x + 0.5f * timeStep * V.x, y + 0.5f * timeStep * V.y, z + 0.5f * timeStep * V.z);
+            Vector3 V = getVelocity(locationCell);
+            V = getVelocity(locationCell + 0.5f * timeStep * V);
 
             // Get neighbours into which velocity components point
             Cell xMin = cells[i - 1, j, k];
@@ -254,18 +257,22 @@ public class CellMaster
             Cell zMin = cells[i, j, k - 1];
 
             // Update velocity of cell
+            currentCell.tempVelocity = new Vector3();
             if (xMin && (xMin.cellType == Cell.CellType.FLUID || currentCell.cellType == Cell.CellType.FLUID)) { currentCell.tempVelocity.x = V.x; }
             if (yMin && (yMin.cellType == Cell.CellType.FLUID || currentCell.cellType == Cell.CellType.FLUID)) { currentCell.tempVelocity.y = V.y; }
             if (zMin && (zMin.cellType == Cell.CellType.FLUID || currentCell.cellType == Cell.CellType.FLUID)) { currentCell.tempVelocity.z = V.z; }
+            
         }
 
         commitVelocities();
     }
 
     // Get the interpolated velocity at a point in space.
-    Vector3 getVelocity(float x, float y, float z)
+    // TODO incorporate startLocation
+    Vector3 getVelocity(Vector3 location)
     {
         Vector3 V;
+        float x = location.x;   float y = location.y;   float z = location.z;
         V.x = getInterpolatedValue(x / cellSize, y / cellSize - 0.5f, z / cellSize - 0.5f, 0);
         V.y = getInterpolatedValue(x / cellSize - 0.5f, y / cellSize, z / cellSize - 0.5f, 1);
         V.z = getInterpolatedValue(x / cellSize - 0.5f, y / cellSize - 0.5f, z / cellSize, 2);
@@ -276,8 +283,9 @@ public class CellMaster
     // Some cells might not exist and will be skipped, see Figure 5 in the paper
     float getInterpolatedValue(float x, float y, float z, int index)
     {
-        // Convert to integer to get the rounded down indices of the cell.
-        (int i, int j, int k) = ((int)x, (int)y, (int)z);
+        int i = (int)x;
+        int j = (int)y;
+        int k = (int)z;
 
         // Get the cells to interpolate between.
         Cell[] cellArray = {cells[i, j, k], cells[i + 1, j, k], cells[i, j + 1, k], cells[i + 1, j + 1, k],
@@ -342,7 +350,6 @@ public class CellMaster
 
             (int, int, int)[] neighbours = { (i + 1, j, k), (i, j + 1, k), (i, j, k + 1), (i - 1, j, k), (i, j - 1, k), (i, j, k - 1) };
 
-            // TODO: Do we actually need to decrease the laplacian counter if a value is omitted?
             // calculate the laplacian by adding neighbouring velocities together.
             int laplacianCounter = 0;
             Vector3 laplacian = Vector3.zero;
@@ -354,9 +361,10 @@ public class CellMaster
 
                 // If a cell exists include it in the laplacian, select only velocity components that point 
                 // into fluid cells using borderFluidVelocityComponents.
-                if (neighbour) {
-                    laplacian += borderFluidVelocityComponents(i_neigh, j_neigh, k_neigh);
-                    //laplacianCounter++; TODO: WHAT TO COUNT?
+                Vector3 relevantVelocityComponents = borderFluidVelocityComponents(i_neigh, j_neigh, k_neigh);
+                if (neighbour && relevantVelocityComponents != new Vector3(0, 0, 0)) {
+                    laplacian += relevantVelocityComponents;
+                    laplacianCounter++;
                 }
             }
 
@@ -364,7 +372,7 @@ public class CellMaster
             laplacian -= laplacianCounter * currentCell.velocity;   // TODO: FIX laplacianCounter
 
             // Get velocity from viscosity
-            Vector3 newVelocity = currentCell.velocity + timeStep * VISCOSITY * laplacian;
+            Vector3 newVelocity = currentCell.velocity + timeStep * viscosity_const * laplacian;
 
             // Set the viscous velicity as the temp velocity
             currentCell.tempVelocity.x = ((xMin && (xMin.cellType == Cell.CellType.FLUID || currentCell.cellType == Cell.CellType.FLUID)) ? newVelocity.x : currentCell.velocity.x);
@@ -416,38 +424,44 @@ public class CellMaster
         int cellCount = cells.Count;
 
         // Copy the list of cell keys 
-        (int, int, int)[] cellKeyList = { };
-        for (int i = 0; i < 0; i++)
+        List<(int, int, int)> fluidCellKeyList = new List<(int, int, int)>();
+        foreach ((int, int, int) key in cells.Keys)
         {
-            cells.Keys.CopyTo(cellKeyList, i);
+            Cell cell = cells[key];
+            if (cell.cellType == Cell.CellType.FLUID)
+            {
+                fluidCellKeyList.Add(key);
+            }
         }
 
         // Create a dictionary of every cell with an associated index for their values in the A matrix.
         Dictionary<Cell, int> cellIndices = new Dictionary<Cell, int>();
-
-        for (int i = 0; i < cellKeyList.Length; i++)
+        int fluidCount = fluidCellKeyList.Count;
+        for (int i = 0; i < fluidCount; i++)
         {
-            (int, int, int) cellKey = cellKeyList[i];
+            (int, int, int) cellKey = fluidCellKeyList[i];
             Cell cell = cells[cellKey];
             cellIndices[cell] = i;
         }
 
         // Create a matrix A to store coefficients for every cell and their neighbours
-        Matrix<float> A = CreateMatrix.Sparse<float>(cellCount, cellCount);
+        Matrix<float> A = CreateMatrix.Sparse<float>(fluidCount, fluidCount);
 
         // Create a vector B to solve the A matrix for P later on.
-        Vector<float> B = CreateVector.Dense<float>(cellCount);
+        Vector<float> B = CreateVector.Dense<float>(fluidCount);
 
-        foreach ((int, int, int) key in cellKeyList)
+        foreach ((int, int, int) key in fluidCellKeyList)
         {
             // Get the current key, cell, and cell index.
             (int i, int j, int k) = key;
             Cell currentCell = cells[key];
-            int currentCellIndex = cellIndices[currentCell];
 
-            Cell[] fluidNeighbours = {};    // Neighbours that are fluid cells
-            int nonSolidCount = 0;          // Number of non-solid neighbours
-            int airCount = 0;          // Number of non-solid neighbours
+            // Only fluid cells are given a row.
+            if (currentCell.cellType != Cell.CellType.FLUID) { continue; }
+
+            int currentCellIndex = cellIndices[currentCell];        // Get corresponding row in matrix.
+            Cell[] fluidNeighbours = {};                            // Neighbours that are fluid cells
+            int nonSolidCount = 0;                                  // Number of non-solid neighbours
 
             // Retrieve all neighbours for the current cell.
             Cell xMax = cells[i + 1, j, k];
@@ -475,47 +489,86 @@ public class CellMaster
                     int fluidCellIndex = cellIndices[neighbour];
                     A[currentCellIndex, fluidCellIndex] = 1;
                 }
-                else    // So in this case the cell type is AIR. Count for the B matrix.
-                {
-                    airCount++;
-                }
             }
 
             // In matrix A, set the current cell to the negative amount of non-solid neighbours.
             A[currentCellIndex, currentCellIndex] = -nonSolidCount;
 
-
             // Calculate the divergence, setting to 0 for velocity components pointing into solid cells.
-            float divergence = (xMax ? xMax.velocity[0] : 0) - (xMin && xMin.cellType != Cell.CellType.SOLID ? currentCell.velocity[0] : 0)
-                + (yMax ? yMax.velocity[1] : 0) - (yMin && yMin.cellType != Cell.CellType.SOLID ? currentCell.velocity[1] : 0)
-                + (zMax ? zMax.velocity[2] : 0) - (zMin && zMin.cellType != Cell.CellType.SOLID ? currentCell.velocity[2] : 0);
-
+            //float divergence = xMax.velocity[0] - (xMin.cellType != Cell.CellType.SOLID ? currentCell.velocity[0] : 0)
+            //                    + yMax.velocity[1] - (yMin.cellType != Cell.CellType.SOLID ? currentCell.velocity[1] : 0)
+            //                    + zMax.velocity[2] - (zMin.cellType != Cell.CellType.SOLID ? currentCell.velocity[2] : 0);
+            float divergence = (xMin.cellType != Cell.CellType.SOLID ? xMax.velocity[0] - currentCell.velocity[0] : 0)
+                                + (yMin.cellType != Cell.CellType.SOLID ? yMax.velocity[1] - currentCell.velocity[1] : 0)
+                                + (zMin.cellType != Cell.CellType.SOLID ? zMax.velocity[2] - currentCell.velocity[2] : 0);
 
             // In matrix B, set a value based off the divergence in the velocity field for the current cell.
-            B[currentCellIndex] = currentCell.density() * cellSize * divergence / timeStep - airCount * ATMOSPHERIC_PRESSURE;
+            int airCount = nonSolidCount - fluidCount;
+            B[currentCellIndex] = currentCell.density() * cellSize * divergence / timeStep - airCount * atmospheric_pressure;
         }
 
         // Solve for the actual pressure.
         Vector<float> pressure = A.Evd().Solve(B);      // TODO: Faster than SVD but is only allowed if it's diagonizable, not sure whether it always is
-        //Vector<float> pressure = A.SVD().Solve(B);
+        //Vector<float> pressure = A.Svd().Solve(B);
 
-        // TODO: Apply pressure
-        int index = 0;
-        foreach ((int, int, int) key in cellKeyList)
+        // Apply pressure to each cell (not to solid cells).
+        foreach ((int, int, int) key in cells.Keys)
         {
-
             // Get the current key, cell, and cell index.
             (int i, int j, int k) = key;
             Cell currentCell = cells[key];
-            int currentCellIndex = cellIndices[currentCell];
-            index++;
 
-            // Retrieve all neighbours for the current cell.
+            // If celltype is solid, skip to next
+            if(currentCell.cellType == Cell.CellType.SOLID) { continue; }
+
+            // Get pressure of current cell.
+            float cellPressure = (currentCell.cellType == Cell.CellType.FLUID ? pressure[cellIndices[currentCell]] : atmospheric_pressure);
+
+            // Retrieve neighbours for the current cell.
             Cell xMin = cells[i - 1, j, k];
             Cell yMin = cells[i, j - 1, k];
             Cell zMin = cells[i, j, k - 1];
 
-            Cell[] neighbours = { xMin, yMin, zMin };
+            // Calculate gradient of the pressure; only for velocity components bordering non-solid cells.
+            // TODO: “Ghost” pressure for solid walls
+            Vector3 pressureGradient = new Vector3(0f,  0f, 0f);
+            if (xMin && xMin.cellType != Cell.CellType.SOLID)
+            {
+                pressureGradient.x = cellPressure - (xMin.cellType == Cell.CellType.FLUID ? pressure[cellIndices[xMin]] : atmospheric_pressure);
+            }
+            //else if (xMin && xMin.cellType == Cell.CellType.SOLID)
+            //{
+            //    pressureGradient.x = currentCell.density() * cellSize * currentCell.velocity.x / timeStep;
+            //}
+            if (yMin && yMin.cellType != Cell.CellType.SOLID)
+            {
+                pressureGradient.y = cellPressure - (yMin.cellType == Cell.CellType.FLUID ? pressure[cellIndices[yMin]] : atmospheric_pressure);
+            }
+            //else if (yMin && yMin.cellType == Cell.CellType.SOLID)
+            //{
+            //    pressureGradient.y = currentCell.density() * cellSize * currentCell.velocity.y / timeStep;
+            //}
+            if (zMin && zMin.cellType != Cell.CellType.SOLID)
+            {
+                pressureGradient.z = cellPressure - (zMin.cellType == Cell.CellType.FLUID ? pressure[cellIndices[zMin]] : atmospheric_pressure);
+            }
+            //else if (zMin && zMin.cellType == Cell.CellType.SOLID)
+            //{
+            //    pressureGradient.z = currentCell.density() * cellSize * currentCell.velocity.z / timeStep;
+            //}
+            // Apply to velocity
+            currentCell.velocity -= timeStep * pressureGradient / (currentCell.density() * cellSize);
+
+            
+            //Cell xMax = cells[i + 1, j, k];
+            //Cell yMax = cells[i, j + 1, k];
+            //Cell zMax = cells[i, j, k + 1];
+            //float checkDivergence = xMax.velocity[0] - (xMin.cellType != Cell.CellType.SOLID ? currentCell.velocity[0] : 0)
+            //                    + yMax.velocity[1] - (yMin.cellType != Cell.CellType.SOLID ? currentCell.velocity[1] : 0)
+            //                    + zMax.velocity[2] - (zMin.cellType != Cell.CellType.SOLID ? currentCell.velocity[2] : 0);
+            //Debug.Log("divergence " + checkDivergence);
+
+
         }
     }
 
@@ -610,6 +663,7 @@ public class CellMaster
             if (xMin && xMin.cellType == Cell.CellType.SOLID) { currentCell.velocity.x = 0; }
             if (yMin && yMin.cellType == Cell.CellType.SOLID) { currentCell.velocity.y = 0; }
             if (zMin && zMin.cellType == Cell.CellType.SOLID) { currentCell.velocity.z = 0; }
+            
         }
     }
 }

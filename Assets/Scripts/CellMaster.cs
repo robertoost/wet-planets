@@ -5,43 +5,44 @@ using UnityEngine;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Solvers;
 
+[Serializable]
 public class CellMaster
 {
     // User chosen variables in SimulationMaster
-    private Vector3 startLocation;       // Minimum location of grid
-    private int x_size;                  // Width size of grid
-    private int y_size;                  // Height size of grid
-    private int z_size;                  // Depth size of grid
-    private float cellSize;              // Size of cells within grid
+    public Vector3 startLocation;       // Minimum location of grid
+    public int x_size = 5;                  // Max Width size of grid
+    public int y_size = 5;                  // Max Height size of grid
+    public int z_size = 5;                  // Max Depth size of grid
+    public float cellSize = 0.2f;              // Size of cells within grid
 
-    private float atmospheric_pressure;
-    private float viscosity_const;
+    public float atmospheric_pressure = 101.325f;
+    public float viscosity_const = 1.0016f;
 
     // Holds all cells in the grid
-    CellGrid cells;
+    public CellGrid cells = new CellGrid();
 
     // Constants
     private const float GRAV = -9.81f;
     public const float FLUID_DENSITY = 1f;
     public const float AIR_DENSITY = 1f;
 
-    // Start is called before the first frame update
-    public CellMaster(Vector3 _startLocation, int _x_size, int _y_size, int _z_size, float _cellSize, float _viscosity, float _atmospheric_pressure)
-    {
-        startLocation = _startLocation;
-        x_size = _x_size;
-        y_size = _y_size;
-        z_size = _z_size;
-        cellSize = _cellSize;
+    // // Start is called before the first frame update
+    // public CellMaster(Vector3 _startLocation, int _x_size, int _y_size, int _z_size, float _cellSize, float _viscosity, float _atmospheric_pressure)
+    // {
+    //     startLocation = _startLocation;
+    //     x_size = _x_size;
+    //     y_size = _y_size;
+    //     z_size = _z_size;
+    //     cellSize = _cellSize;
 
-        viscosity_const = _viscosity;
-        atmospheric_pressure = _atmospheric_pressure;
+    //     viscosity_const = _viscosity;
+    //     atmospheric_pressure = _atmospheric_pressure;
 
-        cells = new CellGrid();
-    }
+    //     cells = new CellGrid();
+    // }
 
     //2. Update the grid based on the marker particles (figure 4)
-    public void updateGrid(Particle[] particles)
+    public void updateGrid(List<Particle> particles)
     {
         //set “layer” field of all cells to −1
         foreach ((int, int, int) key in cells.Keys)
@@ -51,7 +52,7 @@ public class CellMaster
         }
 
         // update cells that currently have fluid in them by looping through particles
-        for (int p = 0; p < particles.Length; p++)
+        for (int p = 0; p < particles.Count; p++)
         {
             // Get cell corresponding to particle
             (int i, int j, int k) = locationToCellIndex(particles[p].getPosition());

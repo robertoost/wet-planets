@@ -2,19 +2,19 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Particle : MonoBehaviour
+public class Particle
 {
     public CellMaster cellMaster;
-
-    public Particle() { }
+    public GameObject gameObject;
+    public Particle(GameObject gameObject) { this.gameObject = gameObject; }
 
     public void locationUpdate(float timeStep, Vector3 velocity)
     {
-        transform.position += velocity * timeStep;
+        gameObject.transform.position += velocity * timeStep;
     }
 
     public Vector3 getPosition()
     {
-        return transform.position;
+        return gameObject.transform.position;
     }
 }

@@ -5,38 +5,92 @@ using UnityEngine;
 public class SimulationMaster : MonoBehaviour
 {
     // User variables
-    public string particleTag;          // Tag used for particle GameObjects
+    // public string particleTag;          // Tag used for particle GameObjects
     public Vector3 startLocation;       // Minimum location of grid
-    public int x_size;                  // Width size of grid
-    public int y_size;                  // Height size of grid
-    public int z_size;                  // Depth size of grid
-    public float cellSize;              // Size of cells within grid
-
-    // Constants
-    public float viscosity = 1.0016f;
-    public float atmospheric_pressure = 101.325f;
-
-    private CellMaster cellMaster;
-    private Particle[] particles;
-    private int numberOfParticles;
-
+    public Vector3 particleFieldSize = new Vector3(2, 0.5f, 2);
+    public float space_between;
+    public GameObject particlePrefab;
+    private List<Particle> particles = new List<Particle>();
+    public CellMaster cellMaster;
 
     // Start is called before the first frame update
     void Start()
     {
         // Create cell master, responsible for updating grid and its velocities
-        cellMaster = new CellMaster(startLocation, x_size, y_size, z_size, cellSize, viscosity, atmospheric_pressure);
+        // cellMaster = new CellMaster(startLocation, x_size, y_size, z_size, cellSize, viscosity, atmospheric_pressure);
         
         // Get all particle objects
-        GameObject[] particleObjects = GameObject.FindGameObjectsWithTag(particleTag);
-        numberOfParticles = particleObjects.Length;
+        // int numberOfParticles = particleObjects.Length;
 
         // Get Particle component from particle objects
-        particles = new Particle[numberOfParticles];
-        for (int i = 0; i < numberOfParticles; i++)
+        // particles = new Particle[numberOfParticles];
+        // for (int i = 0; i < numberOfParticles; i++)
+        // {
+        //     particles[i] = particleObjects[i].GetComponent<Particle>();
+        // }
+    }
+
+    // public void DrawGizmos() {
+    //     foreach(Cell cell in cells ) {
+    //         bool isFluid = cell.cellType == Cell.CellType.FLUID;
+    //         if ( !isFluid) {
+    //             continue;
+    //         }
+
+    //         Gizmos.color = Color.cyan;
+            
+    //         Gizmos.DrawWireCube(cell.location, (Vector3.one * cellSize));
+    //     }
+    // }
+
+    // private void OnDrawGizmosSelected() {
+    //     foreach(Cell cell in cellMaster.cells ) {
+    //         bool isFluid = cell.cellType == Cell.CellType.FLUID;
+    //         if ( !isFluid) {
+    //             continue;
+    //         }
+
+    //         Gizmos.color = Color.cyan;
+            
+    //         Gizmos.DrawWireCube(cell.location, (Vector3.one * cellMaster.cellSize));
+    //     }
+    // }
+    void Awake() {
+        SpawnParticles();
+    }
+
+    void SpawnParticles() {
+        // if ( particles.Count > 0 ) {
+        //     foreach(Particle particle in particles) {
+        //         GameObject.Destroy(particle.gameObject);
+        //     }
+        //     particles.Clear();
+        // }
+
+        float x_size = particleFieldSize.x;
+        float y_size = particleFieldSize.y;
+        float z_size = particleFieldSize.z;
+
+        int numberParticlesX = (int) (x_size / space_between);
+        int numberParticlesY = (int) (y_size / space_between);
+        int numberParticlesZ = (int) (z_size / space_between);
+        for (int x = 0; x < numberParticlesX; x++)
         {
-            particles[i] = particleObjects[i].GetComponent<Particle>();
+            for (int y = 0; y < numberParticlesY; y++)
+            {
+                for(int z = 0; z< numberParticlesZ; z++)
+                {
+                    GameObject particleObject = Instantiate(particlePrefab);
+                    Particle particle = new Particle(particleObject);
+                    particleObject.transform.position = new Vector3(startLocation.x + x * space_between,
+                        startLocation.y + y * space_between,
+                        startLocation.z + z * space_between);
+
+                    particles.Add(particle);
+                }
+            }
         }
+        // throw new System.Exception("STOP");
     }
 
     void FixedUpdate()
@@ -51,11 +105,9 @@ public class SimulationMaster : MonoBehaviour
         cellMaster.velocityUpdate(timeStep);
 
         // 4. Move the particles through u for ∆t time.
-        for (int i = 0; i < particles.Length; i++)
-        {
-            Particle particle = particles[i];
+        foreach(Particle particle in particles) {
             Vector3 velocityParticle = cellMaster.getParticleVelocity(particle.getPosition());
-            particles[i].locationUpdate(timeStep, velocityParticle);
+            particle.locationUpdate(timeStep, velocityParticle);
         }
     }
 }

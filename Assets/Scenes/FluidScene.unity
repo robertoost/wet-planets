@@ -387,22 +387,32 @@ PrefabInstance:
     - target: {fileID: 3541701468657365636, guid: 0a49953a8abc02143a6f8b21a5b1d292,
         type: 3}
       propertyPath: particleFieldSize.x
-      value: 1
+      value: 2
       objectReference: {fileID: 0}
     - target: {fileID: 3541701468657365636, guid: 0a49953a8abc02143a6f8b21a5b1d292,
         type: 3}
       propertyPath: particleFieldSize.y
-      value: 1
+      value: 2
       objectReference: {fileID: 0}
     - target: {fileID: 3541701468657365636, guid: 0a49953a8abc02143a6f8b21a5b1d292,
         type: 3}
       propertyPath: particleFieldSize.z
-      value: 1
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 3541701468657365636, guid: 0a49953a8abc02143a6f8b21a5b1d292,
+        type: 3}
+      propertyPath: cellMaster.absTolerance
+      value: 1e-10
       objectReference: {fileID: 0}
     - target: {fileID: 3541701468657365636, guid: 0a49953a8abc02143a6f8b21a5b1d292,
         type: 3}
       propertyPath: cellMaster.minDeltaTime
       value: 0.02
+      objectReference: {fileID: 0}
+    - target: {fileID: 3541701468657365636, guid: 0a49953a8abc02143a6f8b21a5b1d292,
+        type: 3}
+      propertyPath: cellMaster.relTolerance
+      value: 0.001
       objectReference: {fileID: 0}
     - target: {fileID: 3541701468657365636, guid: 0a49953a8abc02143a6f8b21a5b1d292,
         type: 3}

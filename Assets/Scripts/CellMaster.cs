@@ -25,6 +25,10 @@ public class CellMaster
     public float atmospheric_pressure = 101.325f;
     public float viscosity_const = 1.0016f;
 
+    // Parameters for solving for the pressure vector, influence program speed
+    public float absTolerance = 1e-30f;
+    public float relTolerance = 1e-5f;
+
     // Holds all cells in the grid
     public CellGrid cells = new CellGrid();
 
@@ -32,21 +36,6 @@ public class CellMaster
     private const float GRAV = -9.81f;
     public const float FLUID_DENSITY = 1f;
     public const float AIR_DENSITY = 1f;
-
-    // // Start is called before the first frame update
-    // public CellMaster(Vector3 _startLocation, int _x_size, int _y_size, int _z_size, float _cellSize, float _viscosity, float _atmospheric_pressure)
-    // {
-    //     startLocation = _startLocation;
-    //     x_size = _x_size;
-    //     y_size = _y_size;
-    //     z_size = _z_size;
-    //     cellSize = _cellSize;
-
-    //     viscosity_const = _viscosity;
-    //     atmospheric_pressure = _atmospheric_pressure;
-
-    //     cells = new CellGrid();
-    // }
 
     //2. Update the grid based on the marker particles (figure 4)
     public void updateGrid(List<Particle> particles)
@@ -529,14 +518,15 @@ public class CellMaster
         }
 
         // Solve for the actual pressure.
-        DateTime start = DateTime.UtcNow;
-        Debug.Log(fluidCount);
-
         // Create pressure vector that will be filled
+        DateTime start = DateTime.UtcNow;
         DenseVector pressure = new DenseVector(fluidCount);
 
         // Initialize solver
         CGSolver solver = new CGSolver();
+        DefaultLinearIteration iteration = (DefaultLinearIteration) solver.Iteration;
+        iteration.SetParameters(relTolerance, absTolerance, 1e+5, 100000);
+        solver.Iteration = iteration;
 
         // Initialize matrix that will be used in the preconditioner and initialize preconditioner
         SparseRowMatrix F = new SparseRowMatrix(fluidCount, fluidCount);
@@ -548,10 +538,8 @@ public class CellMaster
 
         // Solve for pressure
         pressure = (DenseVector) solver.Solve(A, B, pressure);
-
         DateTime end = DateTime.UtcNow;
-        TimeSpan timeDiff = end - start;
-        Debug.Log("Matrix solving time elapsed " + timeDiff);
+        Debug.Log("time elapsed: " + (end - start));
 
         // Apply pressure to each cell (not to solid cells).
         foreach ((int, int, int) key in cells.Keys)
@@ -588,17 +576,6 @@ public class CellMaster
 
             // Apply to velocity
             currentCell.velocity -= timeStep * pressureGradient / (currentCell.density() * cellSize);
-
-            
-            //Cell xMax = cells[i + 1, j, k];
-            //Cell yMax = cells[i, j + 1, k];
-            //Cell zMax = cells[i, j, k + 1];
-            //float checkDivergence = xMax.velocity[0] - (xMin.cellType != Cell.CellType.SOLID ? currentCell.velocity[0] : 0)
-            //                    + yMax.velocity[1] - (yMin.cellType != Cell.CellType.SOLID ? currentCell.velocity[1] : 0)
-            //                    + zMax.velocity[2] - (zMin.cellType != Cell.CellType.SOLID ? currentCell.velocity[2] : 0);
-            //Debug.Log("divergence " + checkDivergence);
-
-
         }
     }
 

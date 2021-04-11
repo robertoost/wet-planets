@@ -3,7 +3,10 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using MathNet.Numerics.LinearAlgebra;
-using MathNet.Numerics.LinearAlgebra.Solvers;
+using MathNet.Numerics.LinearAlgebra.Sparse;
+using MathNet.Numerics.LinearAlgebra.Sparse.Linear;
+
+
 
 [Serializable]
 public class CellMaster
@@ -462,10 +465,10 @@ public class CellMaster
         }
 
         // Create a matrix A to store coefficients for every cell and their neighbours
-        Matrix<float> A = CreateMatrix.Sparse<float>(fluidCount, fluidCount);
+        SparseRowMatrix A = new SparseRowMatrix(fluidCount, fluidCount);
 
         // Create a vector B to solve the A matrix for P later on.
-        Vector<float> B = CreateVector.Dense<float>(fluidCount);
+        DenseVector B = new DenseVector(fluidCount);
 
         // TODO: “Ghost” pressure for solid walls?
         foreach ((int, int, int) key in fluidCellKeyList)
@@ -506,13 +509,13 @@ public class CellMaster
                 if (neighbour.cellType == Cell.CellType.FLUID)
                 {
                     int fluidCellIndex = cellIndices[neighbour];
-                    A[currentCellIndex, fluidCellIndex] = 1;
+                    A.AddValue(currentCellIndex, fluidCellIndex, 1);
                     fluidNeighCount++;
                 }
             }
 
             // In matrix A, set the current cell to the negative amount of non-solid neighbours.
-            A[currentCellIndex, currentCellIndex] = -nonSolidNeighCount;
+            A.AddValue(currentCellIndex, currentCellIndex, -nonSolidNeighCount);
 
             // Calculate the divergence, setting to 0 for velocity components pointing into solid cells.
             float divergence = xMax.velocity[0] - (xMin.cellType != Cell.CellType.SOLID ? currentCell.velocity[0] : 0)
@@ -521,12 +524,34 @@ public class CellMaster
 
             // In matrix B, set a value based off the divergence in the velocity field for the current cell.
             int airNeighCount = nonSolidNeighCount - fluidNeighCount;
-            B[currentCellIndex] = currentCell.density() * cellSize * divergence / timeStep - airNeighCount * atmospheric_pressure;
+            float newB = currentCell.density() * cellSize * divergence / timeStep - airNeighCount * atmospheric_pressure;
+            B.AddValue(currentCellIndex, newB);
         }
 
         // Solve for the actual pressure.
-        Vector<float> pressure = A.Evd().Solve(B);      // TODO: Faster than SVD but is only allowed if it's diagonizable, not sure whether it always is
-        //Vector<float> pressure = A.Svd().Solve(B);
+        DateTime start = DateTime.UtcNow;
+        Debug.Log(fluidCount);
+
+        // Create pressure vector that will be filled
+        DenseVector pressure = new DenseVector(fluidCount);
+
+        // Initialize solver
+        CGSolver solver = new CGSolver();
+
+        // Initialize matrix that will be used in the preconditioner and initialize preconditioner
+        SparseRowMatrix F = new SparseRowMatrix(fluidCount, fluidCount);
+        ICCPreconditioner preconditioner = new ICCPreconditioner(F);
+        preconditioner.Setup(A);
+
+        // Couple preconditioner to solver
+        solver.Preconditioner = preconditioner;
+
+        // Solve for pressure
+        pressure = (DenseVector) solver.Solve(A, B, pressure);
+
+        DateTime end = DateTime.UtcNow;
+        TimeSpan timeDiff = end - start;
+        Debug.Log("Matrix solving time elapsed " + timeDiff);
 
         // Apply pressure to each cell (not to solid cells).
         foreach ((int, int, int) key in cells.Keys)
@@ -539,7 +564,7 @@ public class CellMaster
             if(currentCell.cellType == Cell.CellType.SOLID) { continue; }
 
             // Get pressure of current cell.
-            float cellPressure = (currentCell.cellType == Cell.CellType.FLUID ? pressure[cellIndices[currentCell]] : atmospheric_pressure);
+            float cellPressure = (currentCell.cellType == Cell.CellType.FLUID ? (float) pressure.GetValue(cellIndices[currentCell]) : atmospheric_pressure);
 
             // Retrieve neighbours for the current cell.
             Cell xMin = cells[i - 1, j, k];
@@ -550,15 +575,15 @@ public class CellMaster
             Vector3 pressureGradient = new Vector3(0f,  0f, 0f);
             if (xMin && xMin.cellType != Cell.CellType.SOLID)
             {
-                pressureGradient.x = cellPressure - (xMin.cellType == Cell.CellType.FLUID ? pressure[cellIndices[xMin]] : atmospheric_pressure);
+                pressureGradient.x = cellPressure - (xMin.cellType == Cell.CellType.FLUID ? (float) pressure.GetValue(cellIndices[xMin]) : atmospheric_pressure);
             }
             if (yMin && yMin.cellType != Cell.CellType.SOLID)
             {
-                pressureGradient.y = cellPressure - (yMin.cellType == Cell.CellType.FLUID ? pressure[cellIndices[yMin]] : atmospheric_pressure);
+                pressureGradient.y = cellPressure - (yMin.cellType == Cell.CellType.FLUID ? (float) pressure.GetValue(cellIndices[yMin]) : atmospheric_pressure);
             }
             if (zMin && zMin.cellType != Cell.CellType.SOLID)
             {
-                pressureGradient.z = cellPressure - (zMin.cellType == Cell.CellType.FLUID ? pressure[cellIndices[zMin]] : atmospheric_pressure);
+                pressureGradient.z = cellPressure - (zMin.cellType == Cell.CellType.FLUID ? (float) pressure.GetValue(cellIndices[zMin]) : atmospheric_pressure);
             }
 
             // Apply to velocity

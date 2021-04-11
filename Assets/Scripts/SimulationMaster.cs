@@ -14,6 +14,7 @@ public class SimulationMaster : MonoBehaviour
     private List<Particle> particles = new List<Particle>();
     public CellMaster cellMaster;
 
+
     // Start is called before the first frame update
     void Start()
     {
@@ -106,7 +107,6 @@ public class SimulationMaster : MonoBehaviour
         // Get timeStep for this update
         float timeStep = Time.fixedDeltaTime;
 
-
         //2. Update the grid based on the marker particles (figure 4)
         DateTime start = DateTime.UtcNow;
         cellMaster.updateGrid(particles);
@@ -134,6 +134,7 @@ public class SimulationMaster : MonoBehaviour
 
         float currentMaxVelocityMag = cellMaster.getMaxVelocityMagnitude();
         setFixedTimeStep(currentMaxVelocityMag);
+        ;
 
     }
 }

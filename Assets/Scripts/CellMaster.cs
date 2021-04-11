@@ -187,8 +187,10 @@ public class CellMaster
     // Get velocity of particle at location location.
     public Vector3 getParticleVelocity(Vector3 location)
     {
+        Cell cell = cells[locationToCellIndex(location)];
+        Vector3 velocity = cell ? cell.velocity : Vector3.zero;
         // Return velocity of cell at grid coordinates.
-        return cells[locationToCellIndex(location)].velocity;
+        return velocity;
         //return getVelocity(location); // TODO: switch to this version
     }
 

@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -16,6 +17,7 @@ public class SimulationMaster : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
+        setFixedTimeStep(0f);
         // Create cell master, responsible for updating grid and its velocities
         // cellMaster = new CellMaster(startLocation, x_size, y_size, z_size, cellSize, viscosity, atmospheric_pressure);
         
@@ -93,21 +95,45 @@ public class SimulationMaster : MonoBehaviour
         // throw new System.Exception("STOP");
     }
 
+    void setFixedTimeStep(float maxVelocity)
+    {
+        float deltaTime = cellMaster.cflTimestepConstant * cellMaster.cellSize / maxVelocity;
+        Time.fixedDeltaTime = Mathf.Min(deltaTime, cellMaster.minDeltaTime);
+    }
+
     void FixedUpdate()
     {
         // Get timeStep for this update
         float timeStep = Time.fixedDeltaTime;
 
+
         //2. Update the grid based on the marker particles (figure 4)
+        DateTime start = DateTime.UtcNow;
         cellMaster.updateGrid(particles);
+        DateTime end = DateTime.UtcNow;
+        TimeSpan timeDiff = end - start;
+        Debug.Log("Update grid time elapsed " + timeDiff.ToString());
 
         // 3. Advance the velocity field, u
+        start = DateTime.UtcNow;
         cellMaster.velocityUpdate(timeStep);
+        end = DateTime.UtcNow;
+        timeDiff = end - start;
+        Debug.Log("Update velocity time elapsed " + timeDiff.ToString());
 
-        // 4. Move the particles through u for ∆t time.
-        foreach(Particle particle in particles) {
+        // 4. Move the particles through u for ∆t time
+        // TODO:  Since∆tdoes not necessarily coincide with frameboundaries, the particles should not always be advanced by∆t,however.
+        start = DateTime.UtcNow;
+        foreach (Particle particle in particles) {
             Vector3 velocityParticle = cellMaster.getParticleVelocity(particle.getPosition());
             particle.locationUpdate(timeStep, velocityParticle);
         }
+        end = DateTime.UtcNow;
+        timeDiff = end - start;
+        Debug.Log("Update particles time elapsed " + timeDiff.ToString());
+
+        float currentMaxVelocityMag = cellMaster.getMaxVelocityMagnitude();
+        setFixedTimeStep(currentMaxVelocityMag);
+
     }
 }

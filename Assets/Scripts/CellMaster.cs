@@ -15,6 +15,10 @@ public class CellMaster
     public int z_size = 5;                  // Max Depth size of grid
     public float cellSize = 0.2f;              // Size of cells within grid
 
+    public float cflTimestepConstant = 2;
+    public float minDeltaTime = 0.02f;
+    private int minBorderLayers = 2;            // Min number of border layers of type air/solid around fluid
+
     public float atmospheric_pressure = 101.325f;
     public float viscosity_const = 1.0016f;
 
@@ -77,7 +81,7 @@ public class CellMaster
         }
 
         // create a buffer zone around the fluid
-        for(int layer = 1; layer <= 2; layer++)      // TODO: replace with for i = 1 to max(2, dkc f le)
+        for(int layer = 1; layer <= Mathf.Max(minBorderLayers, Mathf.Ceil(cflTimestepConstant)); layer++)
         {
             // Temp storage for new cells, store both keys and cells themselves: TODO make more efficient?
             List<(int, int, int)> neighboursVisited = new List<(int, int, int)>();
@@ -194,6 +198,18 @@ public class CellMaster
         // Return velocity of cell at grid coordinates.
         return cells[locationToCellIndex(location)].velocity;
         //return getVelocity(location); // TODO: switch to this version
+    }
+
+    // Used for determining timestep
+    public float getMaxVelocityMagnitude()
+    {
+        float maxVelocity = 0f;
+        foreach ((int, int, int) key in cells.Keys)
+        {
+            float currentVelocity = cells[key].velocity.sqrMagnitude;
+            maxVelocity = Mathf.Max(currentVelocity, maxVelocity);
+        }
+        return Mathf.Sqrt(maxVelocity);
     }
 
     // Get location in scene from cell index
@@ -570,10 +586,10 @@ public class CellMaster
             currentCell.layer = ((currentCell.cellType == Cell.CellType.FLUID) ? 0 : -1);
         }
 
-        for (int layer = 1; layer <= 2; layer++)      // TODO: replace with for i = 1 to max(2, dkc f le)
-        { 
+        for (int layer = 1; layer <= Mathf.Max(minBorderLayers, Mathf.Ceil(cflTimestepConstant)); layer++)
+        {
             // Loop through non-fluid cells
-            foreach((int, int, int) key in cells.Keys)
+            foreach ((int, int, int) key in cells.Keys)
             {
                 (int i, int j, int k) = key;
                 Cell currentCell = cells[key];
@@ -593,7 +609,7 @@ public class CellMaster
                 List<Cell> visitedNeighbours = new List<Cell>();
                 foreach (Cell neighbour in neighbours)
                 {
-                    if(neighbour && neighbour.layer == -1)
+                    if(neighbour && neighbour.layer == layer - 1)
                     {
                         visitedNeighbours.Add(neighbour);
                     }
@@ -613,14 +629,14 @@ public class CellMaster
 
                 // For velocity components of cell not bordering fluid cells set uj to the average 
                 // of the neighbors of Cin which N.layer ==i−1
-                if (xMin && xMin.cellType != Cell.CellType.FLUID) {
+                if (!xMin || xMin.cellType != Cell.CellType.FLUID) {
                     currentCell.velocity.x = averageVelocity.x;
                 }
-                if (yMin && yMin.cellType != Cell.CellType.FLUID)
+                if (!yMin || yMin.cellType != Cell.CellType.FLUID)
                 {
                     currentCell.velocity.y = averageVelocity.y;
                 }
-                if (zMin && zMin.cellType != Cell.CellType.FLUID)
+                if (!zMin || zMin.cellType != Cell.CellType.FLUID)
                 {
                     currentCell.velocity.z = averageVelocity.z;
                 }
@@ -640,19 +656,24 @@ public class CellMaster
             (int i, int j, int k) = key;
             Cell currentCell = cells[key];
 
-            // If cell is SOLID, skip this cell
-            if(currentCell.cellType == Cell.CellType.SOLID) { continue; }
-
             // Get neighbours into which velocity components point
             Cell xMin = cells[i - 1, j, k];
             Cell yMin = cells[i, j - 1, k];
             Cell zMin = cells[i, j, k - 1];
 
             // Set velocity component to zero if it points into solid neighbour.
-            if (xMin && xMin.cellType == Cell.CellType.SOLID) { currentCell.velocity.x = 0; }
-            if (yMin && yMin.cellType == Cell.CellType.SOLID) { currentCell.velocity.y = 0; }
-            if (zMin && zMin.cellType == Cell.CellType.SOLID) { currentCell.velocity.z = 0; }
-            
+            if(currentCell.cellType != Cell.CellType.SOLID)
+            {
+                if (xMin && (xMin.cellType == Cell.CellType.SOLID && currentCell.velocity.x < 0)) { currentCell.velocity.x = 0; }
+                if (yMin && (yMin.cellType == Cell.CellType.SOLID && currentCell.velocity.y < 0)) { currentCell.velocity.y = 0; }
+                if (zMin && (zMin.cellType == Cell.CellType.SOLID && currentCell.velocity.z < 0)) { currentCell.velocity.z = 0; }
+            }
+            else
+            {
+                if (xMin && (xMin.cellType != Cell.CellType.SOLID && currentCell.velocity.x > 0)) { currentCell.velocity.x = 0; }
+                if (yMin && (yMin.cellType != Cell.CellType.SOLID && currentCell.velocity.y > 0)) { currentCell.velocity.y = 0; }
+                if (zMin && (zMin.cellType != Cell.CellType.SOLID && currentCell.velocity.z > 0)) { currentCell.velocity.z = 0; }
+            }
         }
     }
 }

@@ -13,9 +13,9 @@ public class CellMaster
 {
     // User chosen variables in SimulationMaster
     public Vector3 startLocation;       // Minimum location of grid
-    public int x_size = 5;                  // Max Width size of grid
-    public int y_size = 5;                  // Max Height size of grid
-    public int z_size = 5;                  // Max Depth size of grid
+    public float x_size = 5;                  // Max Width size of grid
+    public float y_size = 5;                  // Max Height size of grid
+    public float z_size = 5;                  // Max Depth size of grid
     public float cellSize = 0.2f;              // Size of cells within grid
 
     public float cflTimestepConstant = 2;

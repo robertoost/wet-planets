@@ -91,7 +91,7 @@ public class SimulationMaster : MonoBehaviour
     void setStartLocation()
     {
         cellMaster.startLocation = cellMaster.startLocation
-            - new Vector3(0.5f * cellMaster.cellSize, 0.5f * cellMaster.cellSize, 0.5f * cellMaster.cellSize);
+            + new Vector3(0.5f * cellMaster.cellSize, 0.5f * cellMaster.cellSize, 0.5f * cellMaster.cellSize);
     }
 
     void FixedUpdate()

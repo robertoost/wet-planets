@@ -340,7 +340,20 @@ public class CellMaster
             Cell yMin = cells[i, j - 1, k];
             if (yMin && (yMin.cellType == Cell.CellType.FLUID || currentCell.cellType == Cell.CellType.FLUID))
             {
-                currentCell.velocity += new Vector3(0, GRAV * timeStep, 0);
+                
+                if (CelestialObject.allCelestialObjects.Count == 0) {
+                    // Assume gravity points downwards if no planets are defined.
+                    currentCell.velocity += new Vector3(0, GRAV * timeStep, 0);
+                } else {
+
+                    // Get velocity from all celestial bodies in the simulation.
+                    Vector3 totalAccelleration = Vector3.zero;
+                    foreach(CelestialObject celestialObject in CelestialObject.allCelestialObjects) {
+                        Vector3 difference = currentCell.location - celestialObject.rb.position;
+                        totalAccelleration += difference.normalized * celestialObject.rb.mass / difference.sqrMagnitude;
+                    }
+                    currentCell.velocity += totalAccelleration.normalized * GRAV * timeStep;
+                }
             }
         }
     }

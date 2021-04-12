@@ -68,7 +68,7 @@ public class SimulationMaster : MonoBehaviour
             {
                 for(int z = 0; z< numberParticlesZ; z++)
                 {
-                    GameObject particleObject = Instantiate(particlePrefab);
+                    GameObject particleObject = Instantiate(particlePrefab, transform);
                     Particle particle = new Particle(particleObject);
                     particleObject.transform.position = new Vector3(startLocation.x + x * space_between,
                         startLocation.y + y * space_between,

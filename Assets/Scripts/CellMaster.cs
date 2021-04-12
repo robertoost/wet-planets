@@ -660,13 +660,16 @@ public class CellMaster
             (int i, int j, int k) = key;
             Cell currentCell = cells[key];
 
-            // Get neighbours into which velocity components point
+            // Retrieve all neighbours for the current cell.
+            Cell xMax = cells[i + 1, j, k];
+            Cell yMax = cells[i, j + 1, k];
+            Cell zMax = cells[i, j, k + 1];
             Cell xMin = cells[i - 1, j, k];
             Cell yMin = cells[i, j - 1, k];
             Cell zMin = cells[i, j, k - 1];
 
             // Set velocity component to zero if it points into solid neighbour.
-            if(currentCell.cellType != Cell.CellType.SOLID)
+            if (currentCell.cellType != Cell.CellType.SOLID)
             {
                 if (xMin && (xMin.cellType == Cell.CellType.SOLID && currentCell.velocity.x < 0)) { currentCell.velocity.x = 0; }
                 if (yMin && (yMin.cellType == Cell.CellType.SOLID && currentCell.velocity.y < 0)) { currentCell.velocity.y = 0; }
@@ -674,9 +677,14 @@ public class CellMaster
             }
             else
             {
-                if (xMin && (xMin.cellType != Cell.CellType.SOLID && currentCell.velocity.x > 0)) { currentCell.velocity.x = 0; }
-                if (yMin && (yMin.cellType != Cell.CellType.SOLID && currentCell.velocity.y > 0)) { currentCell.velocity.y = 0; }
-                if (zMin && (zMin.cellType != Cell.CellType.SOLID && currentCell.velocity.z > 0)) { currentCell.velocity.z = 0; }
+                if (currentCell.velocity.x > 0 && (!xMax || xMax.cellType == Cell.CellType.SOLID)) { currentCell.velocity.x = 0; }
+                if (currentCell.velocity.y > 0 && (!yMax || yMax.cellType == Cell.CellType.SOLID)) { currentCell.velocity.y = 0; }
+                if (currentCell.velocity.z > 0 && (!zMax || zMax.cellType == Cell.CellType.SOLID)) { currentCell.velocity.z = 0; }
+
+                if (currentCell.velocity.x < 0 && (!xMin || xMin.cellType == Cell.CellType.SOLID)) { currentCell.velocity.x = 0; }
+                if (currentCell.velocity.y < 0 && (!yMin || yMin.cellType == Cell.CellType.SOLID)) { currentCell.velocity.y = 0; }
+                if (currentCell.velocity.z < 0 && (!zMin || zMin.cellType == Cell.CellType.SOLID)) { currentCell.velocity.z = 0; }
+
             }
         }
     }

@@ -11,6 +11,7 @@ This repository contains the Unity project created for the mini project of the c
 
 The project can be run in Unity, the scene PlanetFluidScene contains the main simulation. The scene FluidScene contains a basic fluid simulation, without the planetary influences and the scene PlanetScene contains a simulation of only planetary orbits. When running the PlanetFluidScene in Unity various parameters can be tweaked in the inspector by selecting the right game objects. The SimulationMaster object contains the most interesting parameters influencing the fluid simulation. The project can also be built using the default buildsettings, resulting in a more performant simulation.
 
+![WET PLANETS GIF](https://user-images.githubusercontent.com/33265853/114416633-29ef5700-9bb1-11eb-9dee-0644531719a0.gif)
 
 ## References
 [1] Cline, D., Cardon, D., & Egbert, P. K. (2013). Fluid flow for the rest of us: Tutorial of the marker and cell method in computer graphics. Brigham Young University.

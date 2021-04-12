@@ -189,9 +189,7 @@ public class CellMaster
     {
         Cell cell = cells[locationToCellIndex(location)];
         Vector3 associatedVelocity = getVelocity(location); // TODO: switch to this version
-        //Vector3 associatedVelocity = cell.velocity;
-        Vector3 velocity = cell ? cell.velocity : Vector3.zero;
-        return velocity;
+        return associatedVelocity;
     }
 
     // Used for determining timestep

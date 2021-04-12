@@ -24,7 +24,7 @@ public class SimulationMaster : MonoBehaviour
     void Start()
     {
         setFixedTimeStep(0f);       // Set variable time step for fixed update
-        setStartLocation();         // Shift start location to account for discretization
+        //setStartLocation();         // Shift start location to account for discretization
     }
 
     // public void DrawGizmos() {

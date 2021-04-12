@@ -188,10 +188,10 @@ public class CellMaster
     public Vector3 getParticleVelocity(Vector3 location)
     {
         Cell cell = cells[locationToCellIndex(location)];
+        Vector3 associatedVelocity = getVelocity(location); // TODO: switch to this version
+        //Vector3 associatedVelocity = cell.velocity;
         Vector3 velocity = cell ? cell.velocity : Vector3.zero;
-        // Return velocity of cell at grid coordinates.
         return velocity;
-        //return getVelocity(location); // TODO: switch to this version
     }
 
     // Used for determining timestep
@@ -283,7 +283,7 @@ public class CellMaster
     Vector3 getVelocity(Vector3 location)
     {
         Vector3 V;
-        float x = location.x;   float y = location.y;   float z = location.z;
+        float x = location.x - startLocation.x;   float y = location.y - startLocation.y;   float z = location.z-startLocation.z;
         V.x = getInterpolatedValue(x / cellSize, y / cellSize - 0.5f, z / cellSize - 0.5f, 0);
         V.y = getInterpolatedValue(x / cellSize - 0.5f, y / cellSize, z / cellSize - 0.5f, 1);
         V.z = getInterpolatedValue(x / cellSize - 0.5f, y / cellSize - 0.5f, z / cellSize, 2);
@@ -474,7 +474,6 @@ public class CellMaster
         // Create a vector B to solve the A matrix for P later on.
         DenseVector B = new DenseVector(fluidCount);
 
-        // TODO: “Ghost” pressure for solid walls?
         foreach ((int, int, int) key in fluidCellKeyList)
         {
             // Get the current key, cell, and cell index.
@@ -534,7 +533,6 @@ public class CellMaster
 
         // Solve for the actual pressure.
         // Create pressure vector that will be filled
-        DateTime start = DateTime.UtcNow;
         DenseVector pressure = new DenseVector(fluidCount);
 
         // Initialize solver
@@ -553,8 +551,6 @@ public class CellMaster
 
         // Solve for pressure
         pressure = (DenseVector) solver.Solve(A, B, pressure);
-        DateTime end = DateTime.UtcNow;
-        Debug.Log("time elapsed: " + (end - start));
 
         // Apply pressure to each cell (not to solid cells).
         foreach ((int, int, int) key in cells.Keys)
@@ -690,14 +686,52 @@ public class CellMaster
             }
             else
             {
-                if (currentCell.velocity.x > 0 && (!xMax || xMax.cellType == Cell.CellType.SOLID)) { currentCell.velocity.x = 0; }
-                if (currentCell.velocity.y > 0 && (!yMax || yMax.cellType == Cell.CellType.SOLID)) { currentCell.velocity.y = 0; }
-                if (currentCell.velocity.z > 0 && (!zMax || zMax.cellType == Cell.CellType.SOLID)) { currentCell.velocity.z = 0; }
+                if (currentCell.velocity.x >= 0 && xMin){
+                    if(xMin.cellType != Cell.CellType.SOLID)
+                    {
+                        currentCell.velocity.x = 0;
+                    }
+                }
+                else
+                {
+                    Cell xMaxMax = cells[i + 2, j, k];
+                    if (!xMaxMax || xMaxMax.cellType == Cell.CellType.SOLID)
+                    {
+                        currentCell.velocity.x = 0;
+                    }
+                }
 
-                if (currentCell.velocity.x < 0 && (!xMin || xMin.cellType == Cell.CellType.SOLID)) { currentCell.velocity.x = 0; }
-                if (currentCell.velocity.y < 0 && (!yMin || yMin.cellType == Cell.CellType.SOLID)) { currentCell.velocity.y = 0; }
-                if (currentCell.velocity.z < 0 && (!zMin || zMin.cellType == Cell.CellType.SOLID)) { currentCell.velocity.z = 0; }
+                if (currentCell.velocity.y >= 0 && yMin)
+                {
+                    if (yMin.cellType != Cell.CellType.SOLID)
+                    {
+                        currentCell.velocity.y = 0;
+                    }
+                }
+                else
+                {
+                    Cell yMaxMax = cells[i, j + 2, k];
+                    if (!yMaxMax || yMaxMax.cellType == Cell.CellType.SOLID)
+                    {
+                        currentCell.velocity.y = 0;
+                    }
+                }
 
+                if (currentCell.velocity.z >= 0 && zMin)
+                {
+                    if (zMin.cellType != Cell.CellType.SOLID)
+                    {
+                        currentCell.velocity.z = 0;
+                    }
+                }
+                else
+                {
+                    Cell zMaxMax = cells[i, j, k + 2];
+                    if (!zMaxMax || zMaxMax.cellType == Cell.CellType.SOLID)
+                    {
+                        currentCell.velocity.z = 0;
+                    }
+                }
             }
         }
     }

@@ -14,11 +14,17 @@ public class SimulationMaster : MonoBehaviour
     private List<Particle> particles = new List<Particle>();
     public CellMaster cellMaster;
 
+    // Spawn particles at the very earliest moment
+    void Awake()
+    {
+        SpawnParticles();
+    }
 
     // Start is called before the first frame update
     void Start()
     {
-        setFixedTimeStep(0f);
+        setFixedTimeStep(0f);       // Set variable time step for fixed update
+        setStartLocation();         // Shift start location to account for discretization
     }
 
     // public void DrawGizmos() {
@@ -46,9 +52,6 @@ public class SimulationMaster : MonoBehaviour
     //         Gizmos.DrawWireCube(cell.location, (Vector3.one * cellMaster.cellSize));
     //     }
     // }
-    void Awake() {
-        SpawnParticles();
-    }
 
     void SpawnParticles() {
 
@@ -82,6 +85,13 @@ public class SimulationMaster : MonoBehaviour
     {
         float deltaTime = cellMaster.cflTimestepConstant * cellMaster.cellSize / maxVelocity;
         Time.fixedDeltaTime = Mathf.Min(deltaTime, cellMaster.minDeltaTime);
+    }
+
+    // Set grid at right position, has to be a bit shifted to account for discretization
+    void setStartLocation()
+    {
+        cellMaster.startLocation = cellMaster.startLocation
+            - new Vector3(0.5f * cellMaster.cellSize, 0.5f * cellMaster.cellSize, 0.5f * cellMaster.cellSize);
     }
 
     void FixedUpdate()

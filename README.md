@@ -21,3 +21,7 @@ The project can be run in Unity, the scene PlanetFluidScene contains the main si
 ## Assets Used
 - **Planet materials:** Vast Outer Space by Prodigious Creations. https://assetstore.unity.com/packages/3d/environments/sci-fi/vast-outer-space-38913
 - **Skybox:** MilkyWay by Adam Bielecki https://assetstore.unity.com/packages/2d/textures-materials/milky-way-skybox-94001
+
+## Extra
+The slides we used to present this project, with some extra nifty gifs!
+https://docs.google.com/presentation/d/1yF8JSPgMaA5EDUk05qkS8yagaiCC8VXLZ4ETxP38NDQ/edit?usp=sharing
